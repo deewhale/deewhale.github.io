@@ -1,8 +1,7 @@
 
 <ul>
-{% site.posts | sort: 'date' %}
 
-  {% for post in site.posts %}
+  {% for post in site.posts offset:0 %}
     <li>
       <a href="{{ post.url }}">{{ post.title }}</a>
     </li>
