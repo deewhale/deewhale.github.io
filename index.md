@@ -1,6 +1,6 @@
 
 <ul>
-{{ site.posts | sort: 'date' }}
+{% site.posts | sort: 'date' %}
 
   {% for post in site.posts %}
     <li>
