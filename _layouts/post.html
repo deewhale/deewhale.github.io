@@ -1,0 +1,22 @@
+---
+layout: default
+---
+<article class="post">
+  <header class="post-header">
+    <a class="back-link" href="{{ '/' | relative_url }}">← 返回文章列表</a>
+    <h1>{{ page.title }}</h1>
+    {% if page.description %}<p class="post-deck">{{ page.description }}</p>{% endif %}
+    <div class="post-meta">
+      <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %m 月 %d 日' }}</time>
+      {% if page.tags.size > 0 %}<span>·</span><span>{{ page.tags | join: ' / ' }}</span>{% endif %}
+    </div>
+  </header>
+
+  <div class="prose">{{ content }}</div>
+
+  <footer class="post-footer">
+    <p>感谢读到这里。</p>
+    <a href="{{ '/' | relative_url }}">继续逛逛 →</a>
+  </footer>
+</article>
+

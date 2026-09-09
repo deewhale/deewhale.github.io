@@ -1,0 +1,22 @@
+title: Pepper 的小站
+description: 关于技术、产品与生活的长期笔记。
+url: https://deewhale.github.io
+baseurl: ""
+lang: zh-CN
+timezone: Asia/Shanghai
+
+author:
+  name: Pepper
+  github: deewhale
+
+permalink: /posts/:title/
+future: false
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+exclude:
+  - README.md
+  - LICENSE
+

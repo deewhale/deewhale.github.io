@@ -1,0 +1,40 @@
+---
+layout: default
+---
+<section class="hero">
+  <p class="eyebrow">PEPPER'S NOTEBOOK</p>
+  <h1>把想法写下来，<br><em>让时间替它们发酵。</em></h1>
+  <p class="hero-copy">{{ site.description }}</p>
+</section>
+
+<section class="post-index" aria-labelledby="latest-posts">
+  <div class="section-heading">
+    <h2 id="latest-posts">最近文章</h2>
+    <span>{{ site.posts | size }} 篇记录</span>
+  </div>
+
+  {% if site.posts.size > 0 %}
+    <div class="post-list">
+      {% for post in site.posts %}
+        <article class="post-card">
+          <time datetime="{{ post.date | date_to_xmlschema }}">
+            {{ post.date | date: '%Y.%m.%d' }}
+          </time>
+          <div>
+            <h3><a href="{{ post.url | relative_url }}">{{ post.title }}</a></h3>
+            {% if post.description %}<p>{{ post.description }}</p>{% endif %}
+            {% if post.tags.size > 0 %}
+              <ul class="tags" aria-label="标签">
+                {% for tag in post.tags %}<li>{{ tag }}</li>{% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+          <a class="read-more" href="{{ post.url | relative_url }}" aria-label="阅读《{{ post.title }}》">→</a>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-state">第一篇文章正在路上。</p>
+  {% endif %}
+</section>
+
