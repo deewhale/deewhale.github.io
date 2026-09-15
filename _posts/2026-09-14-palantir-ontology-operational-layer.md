@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Palantir Ontology 真正值得学的，不是知识图谱"
+title: "Palantir Ontology 核心架构研究"
 description: "Ontology 的价值不在于画出更多实体关系，而在于把业务对象、允许的动作、执行逻辑和权限边界变成一份可运行的契约。"
 tags: [Palantir, 数据架构, Ontology]
 ---

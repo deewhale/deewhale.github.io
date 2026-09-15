@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "长运行 Agent 的真正难题，不是上下文不够长"
+title: "Harness 工程设计：长运行 Agent 的交接与验证"
 description: "能跨越多个上下文持续工作的 Agent，靠的不是无限记忆，而是清楚的交接、可验证的进度和可替换的运行接口。"
 tags: [Agent, 架构, Harness]
 ---
