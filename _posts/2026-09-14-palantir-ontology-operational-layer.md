@@ -1,190 +1,233 @@
 ---
 layout: post
 title: "Palantir Ontology 核心架构研究"
-description: "从对象与动作的建模出发，拆解 Palantir Ontology 的运行时、查询、写回、权限和分支机制，以及这套架构值得借鉴和需要警惕的部分。"
+description: "从整体架构、Ontology Language 与 Engine 出发，拆解 Palantir 的对象查询、Action 写回、AIP 工具面、权限和版本治理。"
 tags: [Palantir, 数据架构, Ontology]
 ---
 
-一家制造企业发现，三天后某条产线会缺料。预测模型已经在报表上把风险标成红色，计划员也看见了。接下来仍有一串工作：确认短缺对应哪些工单，查替代料和供应商产能，估算改排产的代价，向 ERP 提交调整，通知采购，再观察交付结果。
+Palantir 对 Ontology 的定义比常见“语义层”更宽：它是建立在组织数字资产之上的 operational layer，把数据、逻辑、动作和安全策略放进同一套业务表示中。[Architecture Center 的概览](https://www.palantir.com/docs/foundry/architecture-center/overview)用供应链说明这套思路——订单、产线是业务名词，更新采购单、调整分销策略则是作用于这些名词的动词。
 
-这串工作通常跨越数仓、BI、邮件、Excel 和 ERP。每套系统都完成了自己的职责，整条决策链却没有一个共同的执行上下文。数据团队交付“信息”，业务团队靠人把信息翻译成动作。
+因此，理解 Palantir Ontology 不能只看 object 和 link。对象如何被索引和查询，候选决策怎样成为受控 Action，外部系统的结果如何返回，Agent 能调用哪些业务工具，都属于这套架构的一部分。它的吸引力与成本来自同一件事：语义模型被推进了生产运行时。
 
-Palantir Ontology 处理的就是这段翻译。它把订单、物料、设备等业务对象，预测与优化逻辑，可以执行的动作，以及每一步的权限绑定到同一套模型中。理解这套架构的关键，也正在“绑定”二字：Ontology 不只提供统一名词，还参与查询、决策和写回的运行过程。
+## 1. Ontology 在 Palantir 中的位置
 
-## 它在 Palantir 全栈中的位置
+许多数据系统已经有业务语义。数仓会定义事实、维度和指标，知识图谱会定义实体与关系，应用服务也会暴露订单、客户之类的领域对象。Ontology 的位置更靠近业务执行：除了告诉应用“这里有什么”，它还描述“允许对它做什么”，并把权限、逻辑和动作挂到同一个对象空间。
 
-Palantir 把标准架构分成 Foundry、AIP 和 Apollo 三个平台。[官方架构说明](https://www.palantir.com/docs/foundry/architecture-center/platforms)给出的边界很明确：Foundry 负责数据运营，包括数据管理、逻辑开发、Ontology 和业务工作流；AIP 提供模型接入、Agent、自动化与评估工具；Apollo 管理承载 Foundry 和 AIP 的基础设施及持续交付。
+这并不要求 Ontology 取代 ERP、MES 或 CRM。Palantir 把它放在既有数字资产之上，源系统仍可掌握某项状态的最终权威。例如订单的计划日期由 ERP 确认，现场开工状态由 MES 负责，预测风险来自模型输出；Ontology 负责把这些状态组织成稳定的对象接口，并为应用和操作者提供共享的关系与动作。
 
-Ontology 位于 Foundry 和 AIP 共同使用的中间层。向下，它把数据集、流数据、模型和函数组织成业务可用的资源；向上，它向应用、分析工具和 Agent 提供对象、关系、动作及权限。Apollo 不参与订单应该如何建模，它解决这些平台服务如何跨环境部署和升级。
+一旦动作进入模型，Ontology 的维护方式就要接近业务 API。改一个属性类型，可能影响查询和应用；改一个 Action 的提交条件，可能改变生产流程；扩大一个权限范围，可能让原本局部的数据进入更广的输出。它已不再是只供检索的元数据目录。
 
-可以把公开架构压缩成下面这张图：
+从架构职责看，这是一种横跨数据面和应用面的契约。向下，它要容纳来自不同系统、不同更新频率的数据；向上，它要让分析页面、运营应用、自动化流程和 Agent 看到相同的对象身份与业务能力。对象模型一旦稳定，下游不需要知道订单究竟来自哪张表；Action 一旦稳定，上游模型也不需要知道 ERP 的通用写入协议。中间层吸收了两侧变化，同时承担接口兼容和运行治理。
 
-```text
-业务应用 / 分析 / Agent / 自动化
-               │
-     Ontology Language + Toolchain
-   object · link · interface · action
-               │
-          Ontology Engine
-    OMS · Object DB · OSS · Actions
-       Funnel · Functions on Objects
-               │
-数据集 / Restricted View / 流 / 模型 / 外部系统
+这种位置解释了 Palantir 为什么把安全也纳入 Ontology。权限并非最后套在页面上的角色判断：对象能否读取、Function 能处理什么、Action 可以写出什么，都会改变一次业务操作的含义。语义、逻辑、动作和安全共享资源标识，才可能让同一个能力在不同应用间复用。
 
-Foundry：数据、逻辑、Ontology 与工作流
-AIP：模型、Agent、自动化与评估
-Apollo：部署与运行基础设施
-```
+## 2. 从平台到运行时：一张整体架构图
 
-这张图有一条容易忽略的边界。Ontology 不是企业所有数据的物理存储替代品。官方将它描述为建立在 Foundry 数字资产之上的 operational layer；对象实例仍由数据源映射、索引和用户编辑产生。源系统里的主数据质量、同步延迟和接口稳定性不会因为加了一层 Ontology 自动消失。
+[Palantir 的平台架构](https://www.palantir.com/docs/foundry/architecture-center/platforms)把职责分给 Foundry、AIP 和 Apollo。Foundry 承载数据管理、逻辑、Ontology 和业务工作流；AIP 提供模型接入、Agent、自动化及评估；Apollo 负责这些平台服务在不同环境中的持续交付和运行。
 
-## 一套同时约束读取和行动的语言
+在 Foundry 内部，可以再从三个观察面理解 Ontology：Language 定义业务类型和能力，Engine 让定义变成可查询、可修改的运行状态，tooling surface 则把这些能力交给开发工具、应用、API/SDK 和 AIP Agent。
 
-在 Ontology 中，业务世界先被拆成四类核心构件。
+    业务使用面
+    应用 / 工作流 / API 与 SDK / AIP Agent 与自动化
+                             │
+                  Ontology tooling surface
+                             │
+    ┌────────────────────────────────────────────┐
+    │ Ontology Language                         │
+    │ object · property · link · interface       │
+    │ function · action · security               │
+    ├────────────────────────────────────────────┤
+    │ Ontology Engine                           │
+    │ OMS · object database · OSS · Actions      │
+    │ Object Data Funnel · Functions             │
+    └────────────────────────────────────────────┘
+                             │
+    Foundry 数据资产 / 流数据 / 模型输出 / 外部业务系统
 
-**Object type** 定义一种实体或事件，例如 `Material`、`ProductionOrder`、`Supplier`、`SupplyRisk`。属性承载物料号、承诺日期、风险分数等数据。每个对象要有能够稳定定位实例的主键。
+    Apollo：承载 Foundry 与 AIP 服务的部署和持续交付
 
-**Link type** 定义对象之间的有向关系及基数。`ProductionOrder consumes Material`、`Supplier supplies Material` 这类关系让应用和查询服务能够沿业务关系查找，而不必让每个应用重写 join 逻辑。
+这张图不是 Palantir 未公开内部拓扑的复原，而是按官方公开职责整理的阅读框架。Language、Engine 和工具面之间的连接，才是 Ontology 区别于普通概念模型的地方：同一份业务定义会被查询服务、应用、Action 和 Agent 共同使用。
 
-**Action type** 是可提交的一组变更定义。它有参数、提交条件和规则，可以创建或修改对象、属性与链接，也可以调用函数、发通知或请求外部系统。Palantir 的[类型参考](https://www.palantir.com/docs/foundry/object-link-types/type-reference)和 [Action 文档](https://www.palantir.com/docs/foundry/action-types/overview)把 Action 视为面向业务目标的一次提交，而非页面上的任意字段编辑。
+读请求和写请求穿过这张图的方式不同。读请求从工具面进入 OSS，按 OMS 中的类型定义查询 object database，并把 Object Set 返回给应用或 Function。写请求从 Action 进入，先检查参数、条件和权限，再修改 Ontology 状态或调用外部系统。源数据和用户编辑随后经 Funnel 更新对象索引。两条路径最终汇合在同一对象空间，但各自有独立的执行和失败语义。
 
-**Interface** 给不同 object type 加一份抽象契约。比如 `Schedulable` 可以要求实现者映射 `startTime`、`endTime` 等属性；`ProductionOrder` 和 `MaintenanceWindow` 保留各自的数据结构，同时可被同一套组件或查询逻辑消费。Interface 还可声明 link 和 action capability 的约束，实现它的 object type 再映射到具体关系或动作。[官方说明](https://www.palantir.com/docs/foundry/interfaces/create-interface)区分必填与可选属性，也要求必需的 link/action constraint 必须由具体类型满足。
+工具面还有一项容易被架构图忽略的工作：把模型变更交给开发流程。Object、link、Function 与 Action 不只是运行时资源，也需要创建、测试、评审和发布。后面的 Global Branching 处理资源版本，Scenario 处理运行数据的假设变化；二者都位于工具面，却不能替代运行时 Action。
 
-Interface 很像面向对象语言中的接口，但类比到此为止。它是 Ontology 元数据的一部分，支持范围仍依具体产品入口而异。例如截至 2026 年 9 月，[Actions on interfaces](https://www.palantir.com/docs/foundry/action-types/actions-on-interfaces) 的提交条件会统一作用于所有实现类型，尚不支持 action log，也不能和 functions 组合。抽象可以减少重复，权限粒度却可能随之变粗。
+## 3. Ontology Language：把名词、关系和动词写进模型
 
-四类构件合在一起，才形成可运行的业务契约。对象说明“现在有什么”，链接说明“它们怎样关联”，Action 说明“允许怎样改变”，Interface 让跨类型能力可以复用。
+Ontology Language 的基础构件并不神秘。[类型参考](https://www.palantir.com/docs/foundry/object-link-types/type-reference)从 object type、property、link type 和 action type 开始；Interface 为多个 object types 提供共同的属性、关系或动作能力。
 
-## 和数仓语义层、知识图谱究竟差在哪
+| 构件 | 表达的内容 | 示例 |
+|---|---|---|
+| Object type | 一类业务实体或事件 | ProductionOrder、Material、SupplyRisk |
+| Property | 对象的业务状态 | 计划日期、库存、风险分数 |
+| Link type | 对象之间可复用的关系 | 风险影响订单、订单消耗物料 |
+| Interface | 跨类型共享的形状或能力 | Schedulable |
+| Action type | 可提交的业务动作 | RescheduleOrder |
 
-这几个概念经常被放在一起，原因是它们都试图给原始数据补上业务含义。差别要放到运行时观察。
+Object type 定义 schema，object instance 才是某个具体实例。[创建 object type](https://www.palantir.com/docs/foundry/object-link-types/create-object-type/index.html)时，数据源列映射为 properties，其中一列成为唯一 primary key。主键让不同应用可以稳定引用同一个对象；跨系统标识怎样对齐，仍由实际数据设计决定。
 
-| 架构 | 主要建模单位 | 擅长的读取 | 写入与副作用 | 治理重点 | 常见消费者 |
-|---|---|---|---|---|---|
-| 数仓模型 | 表、列、事实、维度 | 批量分析、明细查询 | 通常由 ETL 或业务系统负责 | schema、质量、血缘 | SQL、BI、数据科学 |
-| 指标语义层 | metric、dimension、entity | 一致口径的聚合 | 通常不承载业务写操作 | 指标定义与口径版本 | BI、自助分析、API |
-| 知识图谱 | 节点、边、本体、规则 | 关系遍历、实体解析、推理 | 取决于具体图平台 | 实体语义与关系一致性 | 搜索、推荐、推理系统 |
-| Palantir Ontology | object、link、interface、action | 对象搜索、过滤、聚合与 Search Around | Action、function、webhook、writeback | 读取权限、动作权限、业务变更与审计 | 应用、运营人员、Agent |
+假设 ERP 和 MES 都包含生产订单，Ontology 中的 ProductionOrder 不宜简单复制任一张表。团队需要先确定对象身份，再为每个关键属性指定来源：plannedDate 取 ERP，现场状态取 MES，风险分数来自某个带版本的模型输出。Ontology 可以统一访问这些属性，源系统的状态权威仍要保留。否则，一个整洁的 object type 只会把冲突藏到统一名称后面。
 
-表中的前三类是常见架构范式，内部差异很大，不能据此判断某个具体产品缺少写能力。这里要说明的是设计中心：指标层把“收入怎么算”变成公共定义；图谱把“供应商和物料如何关联”变成可查询关系；Ontology 还把“哪个计划员可以对哪些工单发起改排，以及结果写到哪里”纳入模型。
+[Link type 的映射](https://www.palantir.com/docs/foundry/object-link-types/create-link-type)把关系也变成公共接口。一对多关系可以由一侧 foreign key 指向另一侧 primary key，多对多关系可以使用包含双方主键的数据源。应用从 SupplyRisk 沿 link 找到 ProductionOrder，再找到物料和供应商，不必各自维护字段拼接规则。
 
-代价也由此产生。指标口径更新错了，报表可能失真；Action 规则或权限更新错了，生产流程可能直接受到影响。Ontology 团队维护的是线上业务接口，发布纪律要接近应用服务，而非普通元数据目录。
+Interface 处理跨类型复用。比如生产订单和维护窗口都可以实现 Schedulable，各自把本地字段映射到共同的开始时间、结束时间和排程能力。[Interface 文档](https://www.palantir.com/docs/foundry/interfaces/create-interface)允许声明必填属性，以及 link 和 action capability constraints。它把公共能力放在类型系统中，具体 object type 再映射到自己的字段、关系和 Action。
 
-## 元数据和实例数据分开运行
+Action type 让“动词”与对象定义相连。它可以接收参数，检查 submission criteria，修改对象、属性或 link，并触发提交时的副作用。至于谁能提交、怎样写回外部系统，属于运行时机制；在 Language 层，重要的是业务动作已经有了稳定名称和输入边界。
 
-Palantir 公布的[Ontology 后端架构](https://www.palantir.com/docs/foundry/object-backend/overview)由多组服务协作完成。文档只披露高层职责，没有公开这些服务的内部协议、存储引擎实现或一致性算法。可以确认的边界如下：
+把这几个构件放进一份最小订单模型，可以看到它们如何配合。ProductionOrder 以订单号为身份，具有计划日期、优先级和工厂属性；它通过 consumes 关系连接 Material。Material 再通过 suppliedBy 连接 Supplier。模型每次运行生成一个 SupplyRisk，记录预测窗口、模型版本和风险分数，并通过 affects 指向订单。RescheduleOrder 只接受订单、新日期和原因，不暴露任意属性更新。
 
-- **Ontology Metadata Service（OMS）** 保存 object type、link type、action type 等本体资源的定义。它回答“系统里有哪些类型和能力”。
-- **Object databases** 保存索引后的对象数据，为应用提供低延迟查询与查询计算，也参与索引和用户编辑编排。官方将 Object Storage v2 定义为当前承载 Ontology 的 canonical data store；本文不据此判断各个现有租户的迁移状态。
-- **Object Set Service（OSS）** 承担 Ontology 读取，提供搜索、过滤、聚合、对象加载和关系遍历。Object set 既可以是一组固定主键，也可以保存为随底层数据变化而更新的动态定义。
-- **Actions service** 应用用户编辑，校验结构化的变更条件，并可记录历史 action log。
-- **Object Data Funnel** 在 Object Storage v2 中编排写入。它读取数据集、Restricted View、流式数据源以及 Action 产生的用户编辑，将它们索引进对象数据库，并跟随底层数据源更新。
-- **Functions on Objects** 让开发者使用生成的类型绑定读取对象和链接，也可通过 Ontology edit API 生成复杂编辑。官方特别说明，“Functions on Objects”并不是一种独立于普通 Function 的正式运行时类别，更像对一组用法的统称。
+这样的模型给不同消费者一份共同约定。风险页面查询 SupplyRisk，排程组件通过 Schedulable 接受不同类型，Function 沿 link 读取约束，Action 用业务动词提交修改。公共契约减少了每个应用自行解释字段的工作，也要求修改者考虑全部消费者。更换 primary key、改变 link 基数或收紧 Action 参数，都应当被当作接口变更，而非普通的数据列调整。
 
-这套分工首先解决演进问题。OMS 中的业务类型定义不必和每一份对象实例塞在同一个系统里；读请求经 OSS 选择执行路径；批量数据更新和用户编辑经 Funnel 进入索引；复杂业务逻辑留给 Function。Palantir 还公开说明，Object Storage v2 将旧架构中集中在一起的索引和查询职责解耦，以便分别水平扩展。
+## 4. Ontology Engine：OMS、Funnel、object database 与 OSS
 
-这里能得出一个架构推论：Ontology 的“统一”发生在契约和访问面，不代表底层只有一个数据库。这个结论来自公开服务边界，不应继续推演成某种未披露的事务或消息架构。
+Language 里的定义需要被实例化。[Ontology 后端架构](https://www.palantir.com/docs/foundry/object-backend/overview)公开了几组核心服务：
 
-## 一次缺料处置怎样穿过系统
+- Ontology Metadata Service（OMS）保存 object、link、action 等 Ontology resources 的元数据；
+- Object Data Funnel 读取 dataset、Restricted View、流数据源和 Action 产生的用户编辑，编排对象索引更新；
+- object database 保存索引后的对象数据并支持查询计算；
+- Object Set Service（OSS）执行搜索、过滤、聚合、对象加载和沿关系的 Search Around；
+- Actions service 负责应用结构化编辑，Function 则在对象和关系上运行逻辑。
 
-继续用开头的缺料场景。假设 `ProductionOrder` 通过 link 连接到 `Material`，`Material` 又连接 `Supplier`；预测结果生成 `SupplyRisk` 对象；计划员可执行 `RescheduleOrder` 和 `RequestExpedite` 两个 Action。
+元数据和实例数据由此分开。OMS 回答系统定义了哪些类型与能力，Funnel 和 object database 维护可供查询的对象状态，OSS 把对象查询交给应用。Palantir 将 Object Storage v2 称为当前 Ontology 的 canonical data store，并说明新架构把索引与查询子系统解耦。公开资料足以确认这些职责，存储引擎、复制和事务协议并未披露。
 
-第一步是建立对象状态。ERP 的订单和物料数据、MES 的排产状态、供应商回传和预测模型输出先成为 Foundry 数据资产。Funnel 读取这些来源并维护 Object Storage v2 中的索引。OMS 保存各 object type 的属性、主键、链接和 Action 定义。此时 Ontology 提供的是经过业务命名的读模型，ERP 仍可继续担任订单的 source of truth。
+Object Set 是读取侧的关键抽象。它可以保存一组固定主键，也可以保存随数据变化而重新计算的动态定义。运营应用能够筛出仍处于 Open 的 SupplyRisk，再通过 Search Around 取得相关订单、物料和供应商；Function 随后读取这组对象，计算改排或加急的候选方案。
 
-第二步是形成待处理集合。运营应用向 OSS 查询未来三天 `riskScore` 超过阈值、状态仍为 `Open` 的 `SupplyRisk`，再沿 link 找出受影响的 `ProductionOrder`、物料和供应商。结果可以保存为动态 object set，交给其他 Foundry 应用继续使用。权限过滤在查询过程中生效，因此不同工厂的计划员看到的集合可能不同。
+固定集合适合表达一次已经选中的对象范围，动态定义适合持续变化的运营队列。比如“今天交给某位计划员处理的十张订单”需要保存具体对象 ID，“所有未来三天高风险且尚未处置的订单”则可以持续重算。二者都通过 Object Set 交给下游，但在审计和复现中的含义不同。实际系统往往同时保存查询定义、当时输入版本和最终选中的对象 ID。
 
-第三步是计算选项。一个 Function 读取订单优先级、库存、替代料和产能，返回若干改排方案及影响。AIP Agent 也可以使用这些对象和函数提出方案。模型此时生成的是候选决策；它能调用哪些资源，仍受平台授权和 Action 条件限制。
+从数据进入到查询返回，Engine 还承担新鲜度交接。Funnel 根据数据源更新索引，OSS 读取的是索引后的对象状态；ERP 刚刚发生的变化，要等对应数据链更新后才会反映到 Object Set。应用若用对象状态决定是否提交高风险动作，就需要知道数据更新边界，并在 Action 的提交条件中重新检查关键状态。
 
-第四步是提交动作。计划员选择方案，调用 `RescheduleOrder(order, newDate, reason)`。Actions service 检查调用者能否查看相关类型和数据源、是否满足 submission criteria、是否具备被修改对象及 action log 的必要权限。规则可以更新订单的计划日期，创建 `ScheduleDecision`，并链接到原风险和操作者。
+> 实现注记：Object Set 提供稳定的语义接口，不代表查询只有一种物理路径。[OSS 限制文档](https://www.palantir.com/docs/foundry/ontologies/oss-limitations)显示，查询可以在存储下推、内存和 Spark 之间切换；截至 2026-09-15，部分 Search Around、derived property 和 SDK 加载存在以 10 万对象为量级的默认切换或加载边界。数字会随功能和配置变化，架构结论只有一条：高频关系与派生计算必须按实际访问路径评审，必要时提前过滤、分页或有限反规范化。
 
-第五步是写回 ERP。如果 ERP 才是排产日期的权威来源，Action 可以调用 webhook。这里存在两种语义完全不同的顺序：[writeback webhook](https://www.palantir.com/docs/foundry/action-types/webhooks) 在 Ontology 编辑前调用，外部请求失败时终止后续编辑；side-effect webhook 在对象修改后执行，用户可能已经看到成功，外部请求随后仍可能失败。
+## 5. 一条 Action 怎样完成读取、写入和反馈
 
-即便选择 writeback webhook，也得不到跨系统原子事务。官方文档明确指出，外部请求可能成功，而后续 Ontology 修改失败。于是系统仍需幂等键、对账任务和补偿流程。使用 side effect 时，异步失败队列、重试策略和业务可见的“同步中/失败”状态更不能省。
+用缺料处置做一个架构样例：ERP 提供订单和物料，MES 提供排产状态，供应商回传交期，模型生成 SupplyRisk。Ontology 中的 ProductionOrder 连接 Material，物料连接供应商，风险对象连接受影响订单。
 
-第六步是反馈。ERP 的新状态再次进入数据管道，Funnel 更新对象索引，`ScheduleDecision` 与实际交付结果被用于运营分析或模型评估。到这里，预测、决策、执行和结果才闭合。若配置了 [action log](https://www.palantir.com/docs/foundry/action-types/action-log)，它记录成功提交的决定、操作者和上下文；Action 失败不会进入这份日志，需要用 action metrics、monitoring，以及 Function 或 webhook 的执行历史诊断。对象状态与外部系统的对账另有职责，不能指望一张日志覆盖整条链路。
+这条链的入口不是告警本身，而是一个可以被继续处理的业务集合。风险分数只有和订单优先级、现有库存、在途批次、替代料以及供应商承诺放在一起，才构成一次改排判断的输入。Ontology 在这里提供共享对象与关系，算法仍由规则、优化模型、Function 或人来完成。
 
-这条链路也解释了 Ontology 的价值来自哪里：统一对象 ID 让上下文可以跨应用传递，Action 把写入范围收窄，写回机制连接现有 source of truth，结果又回到同一语义空间。少任何一环，它都可能退化成另一层数据展示。
+### 从 Object Set 到候选方案
 
-## OSS 让对象抽象付出真实的查询成本
+Funnel 根据这些来源更新对象索引，OSS 查询风险集合并沿 link 补齐上下文。一个 Function 读取订单优先级、库存、替代料与供应商产能，产生“改排订单”“使用替代料”或“请求加急”等候选。候选应保存输入版本和影响范围，因为计算结束以后，库存或交期仍可能变化。
 
-对象 API 容易制造一种错觉：既然应用只操作 object set，底层规模和 join 就不用再考虑。Palantir 的 [OSS 限制文档](https://www.palantir.com/docs/foundry/ontologies/oss-limitations)恰好说明相反的事实。OSS 会按查询规模和复杂度自动选择三类执行路径：
+应用可以把风险 Object Set 交给多个处理环节：一个 Function 估算延期代价，另一个校验替代料约束，计划员再比较方案。共享对象 ID 让这些结果能够回到同一订单，而不是靠文本描述重新匹配。Function 也可以生成复杂编辑；这个例子把计算与生产写入分开，是为了让候选方案先保留可审查的边界。
 
-1. 简单过滤与聚合尽量下推到存储层，利用索引完成；
-2. 复杂度较高、规模适中的 object set 在内存中执行；
-3. 超出内存能力或涉及某些复杂操作时，切换到 Spark 分布式执行，换取规模，承担更高延迟和计算成本。
+假设操作者选择改排订单，业务动作可以收敛成下面这份契约轮廓：
 
-文档给出的默认边界很具体：Object Storage v2 中，Search Around 和 derived properties 在超过 10 万对象时可能转入 Spark；单次 Search Around 的结果集默认最多 1000 万对象，整个查询从各数据集加载的对象合计最多 3000 万；Ontology SDK 的 `.all()` / `.allAsync()` 最多把 10 万对象载入内存。实际阈值还受租户配置、查询阶段和功能影响，不能把这些数字当 SLA。
+    RescheduleOrder
+    parameters: orderId, proposedDate, reason, candidateId
+    submission criteria: 订单可改排，候选仍有效，日期与原因合法
+    edits: 记录所选方案和执行状态
+    external effect: 将计划日期提交给 ERP
 
-执行路径不仅由数量决定。derived property、计算 SQL 列、intermediary link type、interface Search Around 等操作可能失去快速下推条件，小集合也会进入内存或 Spark。分页返回少于请求条数，也不表示已经读完；调用方要继续使用 page token，直到 token 为空。
+[Action type](https://www.palantir.com/docs/foundry/action-types/overview)提供参数、提交条件、对象编辑和副作用这些构件。上面的字段只是示例，不是平台配置语法。Submission criteria 在提交时重新检查会使候选失效的业务条件，避免几分钟前算出的方案被直接当作当前事实。
 
-这对建模有直接约束。把所有关系都建成多跳 link，再让业务页面临时计算派生属性，语义上很漂亮，交互延迟可能很差。官方给出的建议包括提前过滤、分页、避免无法利用索引的表达式，以及在频繁触碰限制时适度反规范化。Ontology 没有取消物理设计，只是把物理设计藏到了对象接口后面。
+Action 的参数表达业务意图，edit rules 表达平台内状态变化，external effect 负责跨到 ERP。三者分开后，应用不需要拿到一个“任意修改订单”的入口。它只能提交已声明的新日期、原因和候选标识；订单已经开工、计划窗口关闭或候选版本过期时，submission criteria 可以拒绝本次提交。
 
-## 权限模型里最容易踩的两处坑
+### 写回顺序决定失败形态
 
-一句“Action 按用户权限执行”会遗漏关键细节。[Action permissions](https://www.palantir.com/docs/foundry/action-types/permissions) 至少包含四层判断：用户能否看见 action type，能否看见被编辑的 object/link type 及数据源，是否通过 submission criteria，以及能否修改或创建相关对象和 action log。
+ERP 若继续掌握计划日期的最终状态，Action 可以通过 webhook 写回。[Webhook 文档](https://www.palantir.com/docs/foundry/action-types/webhooks)区分两种顺序：
 
-第一处坑来自直接编辑。新 object type 默认只允许经 Action 编辑。在这种配置下，提交者通常只需对被编辑对象有 `Read`，Action 负责把业务写权限收束在预定义入口。若团队同时开放 Foundry Forms、Object Explorer 或 API 直接编辑，底层为 dataset 的 object type 会要求提交者拥有 writeback dataset 的 `Edit`。官方提醒，`Edit` 可能让用户看到整份 writeback dataset 中超出当前操作所需的数据。因此，给用户补权限让按钮“先能点”可能扩大数据暴露面。
+    writeback:   Action → ERP → Ontology changes
+    side effect: Action → Ontology changes → 返回成功 ──► ERP
 
-第二处坑是读权限不会自动成为写入安全。行列访问控制、Restricted View、object security policy 和 property security policy 会过滤 Action 运行时能读到什么，但官方标注这些控制只在读取侧执行，不自然延伸到 Action 写出的数据。处于 Beta 的 [read/write authorizations](https://www.palantir.com/docs/foundry/action-types/read-write-authorizations) 可以再设输入安全上界和输出安全下界；它们补充用户权限和 submission criteria，既不授予访问，也不会自动添加 marking。
+Writeback webhook 先于其他规则执行。外部请求失败会阻止后续 Ontology 修改，外部成功以后，内部修改仍可能失败。Side-effect webhook 在对象修改以后运行，多个 side effect 也没有顺序保证。前者留下“ERP 已改、Ontology 未改”的窗口，后者可能留下“Ontology 已改、ERP 未改”的窗口。
 
-更棘手的是降级写入。若 write authorization 比 read authorization 宽松，Action 可能把高敏输入加工成较低敏输出。这可以是有审批的解密或脱敏流程，也可能造成 data spill。当前文档说明，保存或发布 Action 时会检查配置者的 declassification 权限，但若没有设置 read authorization，就不会执行相应的降级检查。团队需要把 Action 当成数据流的一段来做威胁建模，不能只审调用者角色。
+两种方式适合不同的业务后果。ERP 必须先确认计划日期时，writeback 的顺序更贴近权威系统；发送通知、触发非关键下游任务时，side effect 可以让主编辑先完成。选择的依据是失败以后哪一侧状态可以暂时领先，以及操作者在页面上看到“成功”时，系统究竟已经证明了什么。
 
-权限设计还要覆盖失败状态：谁能看 action log，通知接收者能否看到消息中包含的对象数据，webhook 使用何种身份访问外部系统，补偿任务又以谁的身份运行。Ontology 把这些问题集中到了一个可治理入口，同时也让配置错误具有更大的爆炸半径。
+跨系统原子性是 Action 机制中最影响设计的边界。请求需要稳定幂等键；响应未知时先查询 ERP，再决定是否重试；候选 ID、Action submission 和外部 transaction 需要能够对账。补偿动作应由业务规则显式定义，不能假定平台会自动把两个系统一起回滚。
 
-## Scenario 与 Global Branching 管的是两种变化
+执行状态最好与这些证据对应。Submitted 表示平台已经接受请求，external-confirmed 表示 ERP 已确认，reconciled 表示对象状态已经和源系统对齐，failed 则要记录失败发生在哪个边界。具体状态名称可以变化，关键是“按钮返回成功”不能提前取代外部业务事实。
 
-Palantir 文档里同时出现 scenario、branch 和 proposal，读起来很像同一套 Git 工作流。它们服务于不同对象。
+### 反馈回到同一对象空间
 
-[Ontology scenario](https://www.palantir.com/docs/foundry/ontology/overview-ontology-scenario) 是运行期数据沙箱。人或 Agent 可在隔离分叉上应用一个或多个 Action，比较方案，再通过单独受控的 merge action 把选中编辑合入 main Ontology data。Scenario 会周期性基于 main 或 global branch 自动 rebase；它不是历史快照或通用数据版本库。该能力截至本文核验时仍处于 Beta，默认有 30 天存活期，也存在 Action 合并限制。
+ERP 的新状态经数据链重新进入 Ontology，Funnel 更新对象索引，应用把执行结果与风险、候选和动作关联。此时才能判断改排是否发生，以及短缺是否解除。读取、计算、动作和结果共用同一组业务 ID，构成了完整的运营链。
 
-[Global Branching](https://www.palantir.com/docs/foundry/ontologies/branching-ontology) 面向 builder 的开发隔离。团队可以在 branch 上修改 object type、link type、action type 等 Ontology resources，运行检查、处理 rebase 冲突、发起 review，再合入 main。它保护的是模型、逻辑和端到端应用变更，不是每一次业务操作都创建一条资源分支。
+反馈还使模型评估从离线准确率进入业务结果。系统可以比较候选是否被采纳、Action 是否完成、订单是否按新计划执行，以及风险是否转移到其他订单。若这些记录没有共同 ID，评估只能看到模型输出或按钮点击，无法判断一次决定造成了什么后果。
 
-Proposal 则是决策交互中的候选输出。Agent 可以提出方案，由操作员修改、反馈或批准；是否在 scenario 中演算、是否最终触发 Action，由具体工作流决定。把三者分开后，治理关系才清楚：Global Branching 管“系统定义怎么改”，Scenario 管“假设数据怎么变”，Action 管“生产对象允许发生什么”，proposal 只是尚未落地的建议。
+[Action log](https://www.palantir.com/docs/foundry/action-types/action-log)是可选配置，只为成功提交生成相应日志对象。它可以记录操作者和提交上下文，不能覆盖失败提交、绕过 Action 的编辑或 ERP 的最终业务结果。反馈需要重新摄取的源状态和单独的结果关联。
 
-## AIP 接进来以后，Ontology 承担控制面
+## 6. AIP：把 Ontology 作为 Agent 的工具面
 
-企业 Agent 的风险通常不在回答错一个数字，而在错误答案被转成了生产动作。AIP 给模型提供接入、Agent、自动化和评估能力；Ontology 给这些能力划定可见对象、可调用函数和可提交 Action 的边界。[AIP 架构文档](https://www.palantir.com/docs/foundry/architecture-center/aip-architecture)也把持续注入 Ontology context、构建 Agent 与自动化、观察和评估生产行为列在同一架构中。
+AIP 接入以后，Ontology 提供的不只是检索上下文。Agent 可以读取当前调用者可见的对象，沿 link 获取关系，调用版本化 Function 计算方案，再尝试提交已有 Action。[AIP 架构说明](https://www.palantir.com/docs/foundry/architecture-center/aip-architecture)把 Ontology context、Agent 与自动化、生产观察和评估放在同一体系中。
 
-在缺料场景里，Agent 无须获得 ERP 的通用写账号。它读取当前用户可见的 `SupplyRisk` 和相关对象，调用受版本管理的 Function 计算方案，生成 proposal；高风险动作先写入 scenario；最终提交仍经过 Action 的参数、submission criteria 和权限检查。若 Action 配置了 action log，成功提交后还会生成相应日志对象。权限的最小单位从“能不能访问这个系统”收窄到“能不能对这类对象执行这个业务动词”。
+放回缺料流程，Agent 读取 SupplyRisk 和关联订单，调用 Function 比较方案，输出待选建议。最终动作仍通过 RescheduleOrder 的参数、提交条件和权限边界。在这种设计下，模型可以不持有 ERP 的通用写账号，访问范围收敛到具体业务工具。
 
-这并不保证 Agent 安全。Action 的定义可能过宽，Function 可以包含缺陷，提示注入可能影响候选参数，scenario 也有功能限制。可取之处是把模型输出置于已有的类型、权限和执行机制内，使测试、审批、拒绝和追溯有明确挂点。模型能力更换时，业务动作契约可以继续存在。
+这里的建议只是工作流中的候选，不需要假定存在一种固定的 Proposal 资源。应用可以让操作者直接选择，也可以先把若干 Action 应用到 Scenario 中比较，再把被选中的编辑带回主状态。重要的是候选、假设数据和生产动作各自有清楚的状态语义，模型生成一段文本不会自动改变订单。
 
-## 落地时先做一条窄闭环
+这种工具面也改变了评估对象。团队可以分别观察 Agent 读到了什么、产生了哪些候选、提交了哪个 Action、执行是否成功、最终业务结果如何。语言回答质量只是其中一层；生产评估还要检查动作选择、拒绝行为和 outcome。Ontology 的对象与动作 ID 提供连接点，结果关联规则仍需业务流程明确设计。
 
-要借鉴 Ontology，不宜从“建立全公司的数字孪生”开工。一个可操作的顺序是：
+类型和权限不会自动保证 Agent 安全。Action 定义过宽、Function 缺陷或受污染输入仍会造成错误。Ontology 的作用，是让测试、拒绝、审批和追踪有具体挂点，而不是替代这些控制。
 
-1. **选一个有执行后果的决策。** 它应当高频、跨系统、当前依赖人工搬运，并且结果能被观测。缺料处置、设备告警分派、客户退款审核都比“统一客户视图”更容易检验架构价值。
-2. **确定对象身份和 source of truth。** 为核心对象建立稳定主键，写清每个属性来自哪里、允许多大延迟、冲突时谁优先。没有这一步，link 只会把不一致的数据连接起来。
-3. **先交付只读对象接口。** 用少量 object/link type 复现当前判断过程，测量 OSS 查询路径与权限过滤。页面能打开不等于可运营，还要观察高峰延迟、索引新鲜度和大 object set 的退化。
-4. **增加一个窄 Action。** 参数应表达业务意图，规则限制影响范围，并保存 reason、操作者、输入版本和结果。先让人工提交，验证失败处理和审计，再考虑 Agent 调用。
-5. **明确写回一致性。** 为外部系统定义幂等键、超时、重试、对账与补偿；根据业务后果选择 writeback webhook 或 side effect。不要用“已触发”冒充“已完成”。
-6. **把结果接回评估。** 记录建议、批准、执行和业务结果之间的关联。没有结果反馈，Agent 只能优化语言输出，无法证明决策质量改善。
+工具面的质量因此取决于动作粒度。一个接收任意对象类型和任意字段的通用更新 Action，虽然容易接入模型，却重新引入了宽权限和难以评估的副作用。RescheduleOrder 这类窄动作把参数、适用对象和失败条件固定下来，Agent 评估也可以围绕明确的允许与拒绝样本展开。
 
-做完第一条闭环，团队才有材料判断是否扩展 object type、抽象 interface、建设 scenario，或把更多动作开放给自动化。若只读查询已经足够，停在指标语义层或对象 API 往往更便宜。
+## 7. Action 的运行时权限
 
-## 组织成本与平台锁定
+[Action permissions](https://www.palantir.com/docs/foundry/action-types/permissions)分布在多个层次：调用者是否能看到 action type，是否能访问相关 object/link types 与数据源，参数能否通过 submission criteria，以及创建或修改对象、link 和 action log 时是否满足对应权限。按钮不可见、对象集合为空、条件被拒绝和写入失败，通常指向不同的检查点。
 
-Ontology 的技术魅力来自统一，长期成本也来自统一。对象、链接、动作和权限一旦成为多个应用的公共接口，任何变更都会穿过数据、应用和运营团队。需要有人承担下面这些持续工作：
+新 object type 默认只允许经 Action 编辑。在这种配置下，提交者通常只需对被修改对象拥有 Read，业务写入被收束在动作入口。若同时开放 Forms、Object Explorer 或 API direct edit，dataset-backed 类型会要求用户拥有 writeback dataset 的 Edit；这个权限可能让用户看到整份 dataset。为了让一个编辑入口可用而放宽底层权限，会改变原有的数据暴露范围。
 
-- object type 的 owner 负责身份、属性语义和兼容性；
-- Action owner 对提交条件、副作用、回滚和审计负责；
-- 数据 owner 负责源数据质量、更新时效和 Restricted View；
-- 应用与 Agent owner 负责消费契约、评估失败并处理降级；
-- 安全团队审查读取范围、写入授权、外部凭据和降级流向。
+运行时排查也应按这些层次进行。Action 根本不可见，先检查类型与入口权限；对象参数为空，检查数据访问；提交条件失败，查看当前业务状态；编辑或日志创建失败，再进入目标类型和数据源权限。若所有问题都靠增加一个大角色解决，Action 原本提供的最小业务授权很快会被掏空。
 
-这已经接近领域平台团队，而不是一次数据建模项目。若所有 object、function、action、应用组件和部署流程都使用 Palantir 专有资源，迁移成本会随着闭环数量增长。对象属性还能映射回通用 schema，Action 的 submission criteria、Ontology edit 逻辑、scenario 交互和 Workshop 应用却更难原样搬走。
+读取安全与写出安全也需要分别处理。截至 2026-09-15，[read/write authorizations](https://www.palantir.com/docs/foundry/action-types/read-write-authorizations)仍处于 Beta：read authorization 设定额外读取上界，write authorization 规定输出必须满足的最低安全要求；它们补充用户权限和 submission criteria，本身不授予访问，也不会自动添加 marking。
 
-降低锁定风险的办法并非拒绝平台能力，而是保留边界：源系统继续拥有清晰的数据所有权；外部接口采用稳定的业务 ID 和幂等协议；关键规则有平台外可读的规范与测试；Action 日志可以导出对账；模型和 Agent 不直接依赖页面状态。这样即使无法无损迁移，也知道哪些部分是业务资产，哪些部分是产品实现。
+最需要单独评审的是 declassification。假设 Function 读取受限的供应商成本，Action 把决策解释写入更多人可见的 ScheduleDecision。输出可以是经批准的区间，也可能意外带出合同价格。评审必须沿输入、处理逻辑、输出 marking 和写入对象检查完整数据流，不能只检查调用者角色。
 
-Palantir Ontology 给数据架构提出了一个很具体的问题：团队愿不愿意为“采取行动”建立与数据读取同等级别的类型、权限和生命周期治理。愿意，并且确有跨系统决策闭环时，这套架构能把报表后的人工断点变成软件接口。只想统一名词或做关系检索时，较轻的语义层、对象 API 或知识图谱已经够用。
+这个例子也说明 submission criteria 与安全授权的分工。前者判断“订单当前是否允许改排”，后者限制“哪些数据可以参与计算、结果可以落到什么安全级别”。业务条件写得再严格，也无法替代对输出敏感度的检查；安全授权同样不会判断改排是否符合生产规则。
+
+## 8. Scenario 与 Global Branching：两套版本治理
+
+运行时数据与 Ontology 定义有不同的变更节奏。Palantir 用 Scenario 隔离假设数据，用 Global Branching 隔离资源开发；Action 则直接作用于生产对象或外部副作用。
+
+| 机制 | 处理的对象 | 进入主状态的方式 |
+|---|---|---|
+| Ontology Scenario | what-if 的对象数据与假设编辑 | 通过单独受控的 merge action |
+| Global Branching | object、link、action、interface 等资源定义 | 检查、review、rebase 后合入 main |
+| Action | 生产对象、关系或外部副作用 | 提交并通过运行时条件后执行 |
+
+[Global Branching](https://www.palantir.com/docs/foundry/ontologies/branching-ontology)面向 builder。团队在 branch 上修改 Ontology resources，运行检查、处理 rebase 冲突并发起 review，再合入 main。它治理的是对象模型、动作和应用依赖如何一起演进，不为每次业务操作创建资源分支。
+
+例如团队要给 ProductionOrder 增加新的排程属性，并调整 RescheduleOrder 参数，可以在 Global Branch 上同时修改对象、Action 和相关应用，再通过检查与 review 合入主分支。它解决的是版本兼容和开发协作；某位计划员今天改排一张订单，不应因此创建一条资源开发分支。
+
+[Ontology Scenario](https://www.palantir.com/docs/foundry/ontology/overview-ontology-scenario)面向运行期 what-if 分析。人或 Agent 可以在隔离数据上应用 Action、比较方案，再经单独的 merge action 把选中编辑带回 main；该能力在本文核验时仍处于 Beta。Scenario 文档保证的是 Ontology 对象编辑隔离，并未给外部系统提供回滚语义。流程若还会调用 webhook，工程设计不能据此把外部副作用视为可撤销。
+
+在缺料流程里，Scenario 可以同时尝试“延后订单”和“替换物料”，比较两套假设状态对后续订单的影响。Global Branching 则用于发布新的风险对象或改排 Action 定义。一个管理业务数据的可能结果，一个管理平台资源的版本；把它们混成同一种 branch，会让评审对象和合入后果都失去边界。
+
+## 9. 哪些设计可以借，哪些选择取决于平台
+
+Ontology 最值得借鉴的部分，不依赖 Palantir 产品名称：用稳定业务 ID 连接数据和动作；把关系与业务能力做成公共接口；让每次写入有参数、前置条件和可审计上下文；把外部结果重新关联到原始决定；让 Agent 调用窄业务动作，而非持有整个源系统的写权限。
+
+这些原则可以在现有技术栈中逐步实现。团队可以先用领域 API 暴露稳定对象，用工作流引擎约束业务动作，用策略系统处理授权，再把请求、外部交易和结果写进可对账的记录。实现组件未必统一，接口语义可以先统一。最难的工作通常也不在框架选择，而在对象身份、状态权威、动作边界和结果关联。
+
+完整复制则困难得多。OMS、OSS、Object Data Funnel、Actions、Scenario、Global Branching、开发工具和权限系统共同形成平台能力。自行建设一层对象 API 并不等于拥有同样的查询规划、开发体验和治理面；反过来，采用完整平台也意味着对象、Function、Action 和应用逐渐成为专有资源。
+
+平台价值来自这些能力共同工作：类型定义能直接进入对象查询，Action 复用相同权限和对象，Scenario 复用动作规则，AIP 又把对象与动作当作工具。拆开采购或自建时，每个组件都能找到替代品，跨组件的一致资源模型和开发生命周期却需要团队自己维护。选择 Palantir，实际选择的是这种一体化程度。
+
+几类相邻架构的设计中心可以这样区分：
+
+| 路线 | 主要建模单位 | 主要解决的问题 | 生产动作通常由谁负责 |
+|---|---|---|---|
+| 指标语义层 | metric、dimension、entity | 指标口径与聚合一致性 | 业务系统或数据管道 |
+| 知识图谱 | 节点、边、本体 | 实体解析、关系遍历与推理 | 依具体图平台或外部服务 |
+| 典型只读 RAG | 文档块、embedding、metadata | 检索与上下文组装 | 外接工具或业务服务 |
+| 对象 API / 轻量运营层 | 业务对象、服务契约 | 面向应用的对象读取和有限动作 | 各领域服务 |
+| Palantir Ontology | object、link、Function、Action | 共享对象、逻辑、动作与治理 | Ontology Action 与外部写回 |
+
+这张表比较架构重心，不是产品功能排名。知识图谱可以写入，RAG Agent 可以调用工具，对象 API 也能实现审批和审计。需要选择的是公共层应当承担多少生产责任。
+
+多个应用或 Agent 要复用同一批对象、逻辑和受控动作，跨系统写回需要统一治理，并且组织愿意维护这套运行时契约时，Palantir 路线具备完整的平台条件。
+
+对象和动作数量有限，已有领域 API、工作流、授权与审计基础时，轻量运营层更合适。先实现一个窄 Action、明确 source of truth，并保证失败可对账，就能保留主要架构收益。
+
+需求止于指标统一、关系检索或人工决策支持时，保持只读层即可。此时增加 Action、Scenario 和跨系统写回会引入新的生产责任，却没有对应的业务动作需要承接。
 
 ### 官方资料
 
+- [Architecture Center：Ontology 概览](https://www.palantir.com/docs/foundry/architecture-center/overview)
 - [AIP、Foundry 与 Apollo](https://www.palantir.com/docs/foundry/architecture-center/platforms)
 - [Ontology backend architecture](https://www.palantir.com/docs/foundry/object-backend/overview)
 - [Object and link types reference](https://www.palantir.com/docs/foundry/object-link-types/type-reference)
 - [Action types](https://www.palantir.com/docs/foundry/action-types/overview)
 - [Object Set Service limitations](https://www.palantir.com/docs/foundry/ontologies/oss-limitations)
 - [Action permissions](https://www.palantir.com/docs/foundry/action-types/permissions)
-- [Action log 与 Action metrics](https://www.palantir.com/docs/foundry/action-types/action-log)
+- [Action webhooks](https://www.palantir.com/docs/foundry/action-types/webhooks)
 - [Ontology scenarios](https://www.palantir.com/docs/foundry/ontology/overview-ontology-scenario)
 - [Branching the Ontology](https://www.palantir.com/docs/foundry/ontologies/branching-ontology)
