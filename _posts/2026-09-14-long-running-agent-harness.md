@@ -2,10 +2,12 @@
 layout: post
 title: "长运行 Coding Agent：中断接管与完成证明"
 description: "沿一次支付回调改造事故，解释 Coding Agent 跨进程和执行环境工作时，Harness 如何完成交接、恢复、版本验证与外部副作用确认。"
-date: 2026-09-16 12:00:00 +0800
+date: 2026-09-14 12:00:00 +0800
 categories: [AI, Engineering]
 tags: [Coding Agent, Agent Harness, Reliability]
 ---
+
+![一间在执行中断后仍保留工作现场的工程控制室](/assets/images/posts/long-running-agent-harness.jpg)
 
 假设一个 Coding Agent 正在改造支付回调。支付回调是支付平台在交易状态变化后发给业务系统的通知；这里的 Coding Agent，是能够读取代码库、调用工具并修改代码的模型驱动执行者。代码库已经出现改动，进度记录写着“实现完成”，结构化账本却仍把任务标为 `running`。它还调用过支付平台的管理接口，但响应没有来得及保存。进程就在此时消失。
 

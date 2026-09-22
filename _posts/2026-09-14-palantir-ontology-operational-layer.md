@@ -1,11 +1,13 @@
 ---
 layout: post
 title: "Palantir Ontology：一笔缺料订单的受控改期链路"
-date: 2026-09-16
+date: 2026-09-14
 description: "沿一笔假设的缺料订单，解释 Palantir Ontology 如何组织观测、生成候选、约束生产动作，并用权威系统结果与重新读取确认业务变化。"
 categories: [技术, 架构]
 tags: [Palantir, Ontology, Enterprise Architecture]
 ---
+
+![生产计划人员在工厂现场前核对来自不同系统的订单证据](/assets/images/posts/palantir-ontology-operational-layer.jpg)
 
 假设生产订单 `PO-DEMO-042` 遇到缺料。企业资源计划系统（ERP）保存着计划开工日，制造执行系统（MES）显示前序工序尚未结束，库存系统报告关键物料不足，供应商数据给出的到货承诺又晚于计划。四套记录可能都没有错，因为它们回答的是不同问题；但任何一套都不足以决定订单是否改期。
 
