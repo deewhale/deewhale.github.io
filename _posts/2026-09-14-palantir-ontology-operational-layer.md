@@ -3,6 +3,7 @@ layout: post
 title: "Palantir Ontology：一笔缺料订单的受控改期链路"
 date: 2026-09-14
 description: "沿一笔假设的缺料订单，解释 Palantir Ontology 如何组织观测、生成候选、约束生产动作，并用权威系统结果与重新读取确认业务变化。"
+image: /assets/images/posts/palantir-ontology-operational-layer.jpg
 categories: [技术, 架构]
 tags: [Palantir, Ontology, Enterprise Architecture]
 ---

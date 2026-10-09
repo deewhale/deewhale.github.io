@@ -11,6 +11,7 @@
 layout: post
 title: "文章标题"
 description: "一句话摘要"
+image: /assets/images/posts/article-slug.jpg
 tags: [技术, 随笔]
 ---
 
@@ -36,4 +37,3 @@ bundle exec jekyll serve
 ```
 
 然后访问 <http://localhost:4000>。
-

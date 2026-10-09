@@ -2,6 +2,7 @@
 layout: post
 title: "长运行 Coding Agent：中断接管与完成证明"
 description: "沿一次支付回调改造事故，解释 Coding Agent 跨进程和执行环境工作时，Harness 如何完成交接、恢复、版本验证与外部副作用确认。"
+image: /assets/images/posts/long-running-agent-harness.jpg
 date: 2026-09-14 12:00:00 +0800
 categories: [AI, Engineering]
 tags: [Coding Agent, Agent Harness, Reliability]

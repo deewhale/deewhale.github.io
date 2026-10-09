@@ -2,14 +2,24 @@
 layout: null
 ---
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>{{ site.url }}{{ site.baseurl }}/</loc></url>
-  <url><loc>{{ site.url }}{{ site.baseurl }}/about/</loc></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>{{ '/' | absolute_url }}</loc>
+    {% if site.posts.first %}<lastmod>{{ site.posts.first.date | date_to_xmlschema }}</lastmod>{% endif %}
+  </url>
+  <url><loc>{{ '/topics/' | absolute_url }}</loc></url>
+  <url><loc>{{ '/about/' | absolute_url }}</loc></url>
   {% for post in site.posts %}
   <url>
-    <loc>{{ site.url }}{{ site.baseurl }}{{ post.url }}</loc>
-    <lastmod>{{ post.date | date: '%Y-%m-%d' }}</lastmod>
+    <loc>{{ post.url | absolute_url }}</loc>
+    <lastmod>{{ post.last_modified_at | default: post.date | date_to_xmlschema }}</lastmod>
+    {% if post.image %}
+    <image:image>
+      <image:loc>{{ post.image | absolute_url }}</image:loc>
+      <image:title>{{ post.title | xml_escape }}</image:title>
+    </image:image>
+    {% endif %}
   </url>
   {% endfor %}
 </urlset>
-

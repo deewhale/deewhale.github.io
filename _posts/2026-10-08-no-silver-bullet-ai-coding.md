@@ -2,6 +2,7 @@
 layout: post
 title: "没有银弹重读：AI 编程改变了哪些软件困难"
 description: "用 Brooks 的本质困难与附生困难框架，解释 AI 编程为何能显著加快候选实现，却未必等比例加快需求、验证与软件交付。"
+image: /assets/images/posts/no-silver-bullet-ai-coding.jpg
 date: 2026-10-08 13:00:00 +0800
 categories: [AI, Engineering]
 tags: [AI Coding, Software Engineering, Developer Productivity]

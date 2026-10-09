@@ -1,0 +1,69 @@
+{% assign seo_description = page.description | default: site.description | strip_html | normalize_whitespace %}
+{% assign canonical_url = page.url | absolute_url %}
+{% assign modified_date = page.last_modified_at | default: page.date %}
+<title>{% if page.title %}{{ page.title }} · {{ site.title }}{% else %}{{ site.title }} · {{ site.tagline }}{% endif %}</title>
+<meta name="description" content="{{ seo_description | escape }}">
+<meta name="author" content="{{ site.author.name | escape }}">
+{% if page.noindex %}
+<meta name="robots" content="noindex, follow">
+{% else %}
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+{% endif %}
+<link rel="canonical" href="{{ canonical_url }}">
+<link rel="author" href="{{ site.author.url }}">
+
+<meta property="og:locale" content="zh_CN">
+<meta property="og:type" content="{% if page.layout == 'post' %}article{% else %}website{% endif %}">
+<meta property="og:site_name" content="{{ site.title | escape }}">
+<meta property="og:title" content="{{ page.title | default: site.title | escape }}">
+<meta property="og:description" content="{{ seo_description | escape }}">
+<meta property="og:url" content="{{ canonical_url }}">
+{% if page.image %}<meta property="og:image" content="{{ page.image | absolute_url }}">{% endif %}
+{% if page.image %}<meta property="og:image:alt" content="{{ page.title | escape }}">{% endif %}
+{% if page.layout == 'post' %}<meta property="article:published_time" content="{{ page.date | date_to_xmlschema }}">{% endif %}
+{% if page.layout == 'post' %}<meta property="article:modified_time" content="{{ modified_date | date_to_xmlschema }}">{% endif %}
+{% for tag in page.tags %}<meta property="article:tag" content="{{ tag | escape }}">{% endfor %}
+
+<meta name="twitter:card" content="{% if page.image %}summary_large_image{% else %}summary{% endif %}">
+<meta name="twitter:title" content="{{ page.title | default: site.title | escape }}">
+<meta name="twitter:description" content="{{ seo_description | escape }}">
+{% if page.image %}<meta name="twitter:image" content="{{ page.image | absolute_url }}">{% endif %}
+
+<script type="application/ld+json">
+{% if page.layout == 'post' %}
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "mainEntityOfPage": {"@type": "WebPage", "@id": {{ canonical_url | jsonify }}},
+  "headline": {{ page.title | jsonify }},
+  "description": {{ seo_description | jsonify }},
+  {% if page.image %}"image": [{{ page.image | absolute_url | jsonify }}],{% endif %}
+  "datePublished": {{ page.date | date_to_xmlschema | jsonify }},
+  "dateModified": {{ modified_date | date_to_xmlschema | jsonify }},
+  "inLanguage": {{ site.lang | jsonify }},
+  "author": {"@type": "Person", "name": {{ site.author.name | jsonify }}, "url": {{ site.author.url | jsonify }}},
+  "publisher": {"@type": "Person", "name": {{ site.author.name | jsonify }}, "url": {{ site.author.url | jsonify }}},
+  "keywords": {{ page.tags | join: ', ' | jsonify }}
+}
+{% elsif page.url == '/' %}
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": {{ site.title | jsonify }},
+  "alternateName": ["Pepper 技术笔记", "deewhale.github.io"],
+  "url": {{ '/' | absolute_url | jsonify }},
+  "description": {{ site.description | jsonify }},
+  "inLanguage": {{ site.lang | jsonify }},
+  "publisher": {"@type": "Person", "name": {{ site.author.name | jsonify }}, "url": {{ site.author.url | jsonify }} }
+}
+{% else %}
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": {{ page.title | default: site.title | jsonify }},
+  "url": {{ canonical_url | jsonify }},
+  "description": {{ seo_description | jsonify }},
+  "inLanguage": {{ site.lang | jsonify }}
+}
+{% endif %}
+</script>

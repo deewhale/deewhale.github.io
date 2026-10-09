@@ -1,6 +1,5 @@
 ---
 layout: home
 title:
-description: 关于技术、产品与生活的长期笔记。
+description: Pepper 的中文技术博客，聚焦 AI 编程、软件工程、系统架构与开源项目研究。
 ---
-

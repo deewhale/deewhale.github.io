@@ -5,6 +5,7 @@ date: 2026-10-08 14:00:00 +0800
 categories: [Software, Open Source]
 tags: [Bakabase, Playnite, Hydrus, Stash, 资源管理, 软件架构]
 description: "从目录发现、属性来源与索引同步理解 Bakabase 的资源模型，并比较它与 Playnite、Hydrus、Stash 的适用边界。"
+image: /assets/images/posts/bakabase-resource-catalog.jpg
 ---
 
 ![Bakabase 资源目录与多来源属性](/assets/images/posts/bakabase-resource-catalog.jpg)

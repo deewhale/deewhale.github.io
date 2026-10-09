@@ -8,15 +8,29 @@ layout: default
     {% if page.description %}<p class="post-deck">{{ page.description }}</p>{% endif %}
     <div class="post-meta">
       <time datetime="{{ page.date | date_to_xmlschema }}">{{ page.date | date: '%Y 年 %m 月 %d 日' }}</time>
+      <span>·</span><span>{{ site.author.name }}</span>
       {% if page.tags.size > 0 %}<span>·</span><span>{{ page.tags | join: ' / ' }}</span>{% endif %}
     </div>
   </header>
 
   <div class="prose">{{ content }}</div>
 
-  <footer class="post-footer">
-    <p>感谢读到这里。</p>
-    <a href="{{ '/' | relative_url }}">继续逛逛 →</a>
+  <footer class="post-footer" data-nosnippet>
+    <p class="post-footer-label">继续阅读</p>
+    <nav class="post-pagination" aria-label="相邻文章">
+      {% if page.previous %}
+        <a rel="prev" href="{{ page.previous.url | relative_url }}">
+          <span>上一篇</span>
+          <strong>{{ page.previous.title }}</strong>
+        </a>
+      {% endif %}
+      {% if page.next %}
+        <a rel="next" href="{{ page.next.url | relative_url }}">
+          <span>下一篇</span>
+          <strong>{{ page.next.title }}</strong>
+        </a>
+      {% endif %}
+    </nav>
+    <a class="all-posts-link" href="{{ '/' | relative_url }}">查看全部文章 →</a>
   </footer>
 </article>
-

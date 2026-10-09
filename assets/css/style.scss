@@ -177,8 +177,21 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .prose pre { overflow-x: auto; margin: 1.8em 0; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-raised); }
 .prose pre code { padding: 0; background: none; }
 .prose img { max-width: 100%; height: auto; border-radius: 12px; box-shadow: var(--shadow); }
-.post-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 60px; padding-top: 28px; border-top: 1px solid var(--line); color: var(--muted); }
-.post-footer a { color: var(--accent); }
+.post-footer { margin-top: 60px; padding-top: 28px; border-top: 1px solid var(--line); color: var(--muted); }
+.post-footer-label { margin: 0 0 14px; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.post-pagination { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.post-pagination a { display: flex; min-height: 110px; flex-direction: column; gap: 7px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-raised); }
+.post-pagination a:hover { border-color: var(--accent); }
+.post-pagination span { color: var(--muted); font-size: 12px; }
+.post-pagination strong { color: var(--ink); font-family: Georgia, "Songti SC", serif; font-size: 17px; line-height: 1.45; }
+.all-posts-link { display: inline-block; margin-top: 18px; color: var(--accent); }
+
+.topic-index { margin-top: 50px; }
+.topic-group { padding: 28px 0; border-top: 1px solid var(--line); scroll-margin-top: 30px; }
+.topic-group h2 { margin: 0 0 12px; }
+.topic-group ul { margin: 0; padding-left: 1.2em; }
+.topic-group li { margin: .55em 0; }
+.topic-count { color: var(--muted); font-family: ui-monospace, monospace; font-size: 12px; }
 
 .site-footer { display: flex; justify-content: space-between; padding: 30px 0 45px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .site-footer p { margin: 0; }
@@ -200,10 +213,10 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
   .read-more { grid-column: 2; grid-row: 2; }
   .site-footer { gap: 16px; }
   .post { padding-top: 48px; }
+  .post-pagination { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; }
 }
-

@@ -2,6 +2,7 @@
 layout: post
 title: "结构化输出：从 Schema 合规到发票入账"
 description: "沿一张金额与订单号抽错、结构却完全合法的发票，拆解结构化输出进入业务系统前必须通过的接口、业务与证据三道门。"
+image: /assets/images/posts/structured-output-invoice-validation.jpg
 date: 2026-10-08 12:00:00 +0800
 categories: [AI, Engineering]
 tags: [Structured Output, JSON Schema, Document AI]
