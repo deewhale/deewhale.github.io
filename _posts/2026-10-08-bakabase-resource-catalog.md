@@ -6,9 +6,10 @@ categories: [Software, Open Source]
 tags: [Bakabase, Playnite, Hydrus, Stash, 资源管理, 软件架构]
 description: "从目录发现、属性来源与索引同步理解 Bakabase 的资源模型，并比较它与 Playnite、Hydrus、Stash 的适用边界。"
 image: /assets/images/posts/bakabase-resource-catalog.jpg
+image_alt: "示意图：Bakabase 将本地文件整理为带有多来源属性的资源目录"
 ---
 
-![Bakabase 资源目录与多来源属性](/assets/images/posts/bakabase-resource-catalog.jpg)
+![示意图：Bakabase 将本地文件整理为带有多来源属性的资源目录](/assets/images/posts/bakabase-resource-catalog.jpg)
 
 假设 `收藏/作者甲/作品乙/` 里放着几段音频、一张封面和说明文档。文件管理器看到的是若干文件，收藏者想找的却可能是“一部作品”。若扫描后每个文件都变成独立条目，封面与音轨会混在作品列表里；若把整个作者目录当成一项，又无法分别管理各部作品。目录已经整理过，软件仍然可能选错管理单位。
 

@@ -10,6 +10,7 @@ layout: null
   </url>
   <url><loc>{{ '/topics/' | absolute_url }}</loc></url>
   <url><loc>{{ '/about/' | absolute_url }}</loc></url>
+  <url><loc>{{ '/editorial-policy/' | absolute_url }}</loc></url>
   {% for post in site.posts %}
   <url>
     <loc>{{ post.url | absolute_url }}</loc>

@@ -40,7 +40,10 @@
 
       <footer class="site-footer">
         <p>© {{ 'now' | date: '%Y' }} Pepper · 保持好奇，持续记录。</p>
-        <a href="https://github.com/{{ site.author.github }}" rel="me">GitHub ↗</a>
+        <div class="footer-links">
+          <a href="{{ '/editorial-policy/' | relative_url }}">编辑说明</a>
+          <a href="https://github.com/{{ site.author.github }}" rel="me">GitHub ↗</a>
+        </div>
       </footer>
     </div>
     <script>

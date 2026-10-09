@@ -19,7 +19,7 @@
 <meta property="og:description" content="{{ seo_description | escape }}">
 <meta property="og:url" content="{{ canonical_url }}">
 {% if page.image %}<meta property="og:image" content="{{ page.image | absolute_url }}">{% endif %}
-{% if page.image %}<meta property="og:image:alt" content="{{ page.title | escape }}">{% endif %}
+{% if page.image %}<meta property="og:image:alt" content="{{ page.image_alt | default: page.title | escape }}">{% endif %}
 {% if page.layout == 'post' %}<meta property="article:published_time" content="{{ page.date | date_to_xmlschema }}">{% endif %}
 {% if page.layout == 'post' %}<meta property="article:modified_time" content="{{ modified_date | date_to_xmlschema }}">{% endif %}
 {% for tag in page.tags %}<meta property="article:tag" content="{{ tag | escape }}">{% endfor %}
@@ -28,6 +28,7 @@
 <meta name="twitter:title" content="{{ page.title | default: site.title | escape }}">
 <meta name="twitter:description" content="{{ seo_description | escape }}">
 {% if page.image %}<meta name="twitter:image" content="{{ page.image | absolute_url }}">{% endif %}
+{% if page.image %}<meta name="twitter:image:alt" content="{{ page.image_alt | default: page.title | escape }}">{% endif %}
 
 <script type="application/ld+json">
 {% if page.layout == 'post' %}
@@ -37,7 +38,7 @@
   "mainEntityOfPage": {"@type": "WebPage", "@id": {{ canonical_url | jsonify }}},
   "headline": {{ page.title | jsonify }},
   "description": {{ seo_description | jsonify }},
-  {% if page.image %}"image": [{{ page.image | absolute_url | jsonify }}],{% endif %}
+  {% if page.image %}"image": {"@type": "ImageObject", "url": {{ page.image | absolute_url | jsonify }}, "caption": {{ page.image_alt | default: page.title | jsonify }}},{% endif %}
   "datePublished": {{ page.date | date_to_xmlschema | jsonify }},
   "dateModified": {{ modified_date | date_to_xmlschema | jsonify }},
   "inLanguage": {{ site.lang | jsonify }},

@@ -12,6 +12,7 @@ layout: post
 title: "文章标题"
 description: "一句话摘要"
 image: /assets/images/posts/article-slug.jpg
+image_alt: "准确描述图片内容的替代文字"
 tags: [技术, 随笔]
 ---
 
