@@ -4,7 +4,7 @@ title: "Agent 退款工具契约的逐步改写"
 description: "从一个只有 success 布尔值的退款工具开始，逐步补上身份绑定、授权、幂等、异步状态与结果查询。"
 image: /assets/images/posts/agent-tool-contract-refund.jpg
 image_alt: "支付终端、纸质票据与现金放在同一张桌面上"
-date: 2026-10-10 13:00:00 +0800
+date: 2026-10-10 12:00:00 +0800
 categories: [AI, Engineering]
 tags: [AI Agent, Tool Calling, MCP, API Design]
 ---
