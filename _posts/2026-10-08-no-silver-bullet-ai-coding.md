@@ -3,13 +3,15 @@ layout: post
 title: "没有银弹重读：AI 编程改变了哪些软件困难"
 description: "用 Brooks 的本质困难与附生困难框架，解释 AI 编程为何能显著加快候选实现，却未必等比例加快需求、验证与软件交付。"
 image: /assets/images/posts/no-silver-bullet-ai-coding.jpg
-image_alt: "示意图：AI 编程加快候选实现后，工程瓶颈转向定义、验证与交付"
+image_alt: "两名开发者在多台显示器前共同检查代码"
 date: 2026-10-08 13:00:00 +0800
 categories: [AI, Engineering]
 tags: [AI Coding, Software Engineering, Developer Productivity]
 ---
 
-![示意图：AI 编程加快候选实现后，工程瓶颈转向定义、验证与交付](/assets/images/posts/no-silver-bullet-ai-coding.jpg)
+![两名开发者在多台显示器前共同检查代码](/assets/images/posts/no-silver-bullet-ai-coding.jpg)
+
+*摄影：Mushvig Niftaliyev / Unsplash；裁切。*
 
 给一个边界清楚的 HTTP 服务任务，AI 编程工具可以显著缩短完成时间。把任务换成资深维护者熟悉的大型开源仓库，实验却曾测到相反结果。再把观察尺度从代码提交（commit）拉到软件发布（release），编码活动的增幅又会在评审、集成和发布链路中明显衰减。
 
