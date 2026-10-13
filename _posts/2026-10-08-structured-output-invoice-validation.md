@@ -5,7 +5,7 @@ description: "沿一张金额与订单号抽错、结构却完全合法的发票
 image: /assets/images/posts/structured-output-invoice-validation.jpg
 image_alt: "桌上的财务单据、计算器和笔"
 date: 2026-10-08 12:00:00 +0800
-last_modified_at: 2026-10-10 12:00:00 +0800
+last_modified_at: 2026-10-13 12:00:00 +0800
 categories: [AI, Engineering]
 tags: [Structured Output, JSON Schema, Document AI]
 ---
@@ -30,7 +30,7 @@ tags: [Structured Output, JSON Schema, Document AI]
 
 如果流水线在 JSON Schema 通过后就入账，两处抽取错误会直接变成财务事实。结构化输出解决的是模型与软件之间的接口摩擦，财务系统还要判断字段是否彼此一致、是否对应真实订单，以及这些值究竟来自文档哪里。
 
-我的判断是，结构化输出的落库状态应该叫 `schema_valid_candidate`，而不是 `validated_invoice`。一个名字上的克制，可以阻止下游把“程序能接收”误读成“业务已确认”。
+只通过结构校验的记录适合命名为 `schema_valid_candidate`，而不是 `validated_invoice`。一个名字上的克制，可以阻止下游把“程序能接收”误读成“业务已确认”。
 
 ## Schema 交付稳定接口
 
@@ -42,11 +42,11 @@ tags: [Structured Output, JSON Schema, Document AI]
 
 ## 金额关系可以直接执行
 
-发票金额校验无需再调用一次模型。下面这段只依赖 Python 标准库的代码可以直接运行：它用 `Decimal` 保存金额，在候选对象构造时检查价税关系，再查询采购订单主数据：
+发票金额校验无需再调用一次模型。下面的 Python 3.9+ 示例只依赖标准库：候选对象保存原值，金额与订单校验分别返回违规项，调用方再决定处理路径。示例处理已经通过接口检查的有限、两位小数 CNY 金额；订单查询中的法人来自当前业务上下文。
 
 ```python
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Protocol
 
 
@@ -59,28 +59,71 @@ class InvoiceCandidate:
     supplier_tax_id: str
     purchase_order: str
 
-    def __post_init__(self) -> None:
-        expected = (self.net_amount + self.tax_amount).quantize(Decimal("0.01"))
-        if expected != self.invoice_total:
-            raise ValueError(f"invoice_total should be {expected}")
+
+@dataclass(frozen=True)
+class Violation:
+    code: str
+    field: str
+    actual: str
+    expected: str
+
+
+def validate_amounts(invoice: InvoiceCandidate) -> list[Violation]:
+    expected = (invoice.net_amount + invoice.tax_amount).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    if expected == invoice.invoice_total:
+        return []
+    return [Violation(
+        "amount_mismatch", "invoice_total",
+        str(invoice.invoice_total), str(expected),
+    )]
 
 
 class OrderRepository(Protocol):
-    def matches(self, po: str, supplier_tax_id: str, currency: str) -> bool: ...
+    def matches(
+        self, po: str, supplier_tax_id: str,
+        currency: str, buyer_legal_entity: str,
+    ) -> bool:
+        """查询完成后，判断订单是否匹配且处于允许处理的状态。"""
+        ...
 
 
-def validate_order(invoice: InvoiceCandidate, orders: OrderRepository) -> None:
-    if not orders.matches(
-        invoice.purchase_order,
-        invoice.supplier_tax_id,
-        invoice.currency,
+def validate_order(
+    invoice: InvoiceCandidate,
+    orders: OrderRepository,
+    buyer_legal_entity: str,
+) -> list[Violation]:
+    if orders.matches(
+        invoice.purchase_order, invoice.supplier_tax_id,
+        invoice.currency, buyer_legal_entity,
     ):
-        raise ValueError("purchase order does not match supplier and currency")
+        return []
+    return [Violation(
+        "order_mismatch", "purchase_order",
+        invoice.purchase_order, "matching eligible order",
+    )]
+
+
+def next_step(violations: list[Violation]) -> str:
+    if any(v.code == "order_mismatch" for v in violations):
+        return "rejected"
+    return "needs_review" if violations else "continue_checks"
+
+
+invoice = InvoiceCandidate(
+    Decimal("7292.04"), Decimal("947.96"), Decimal("8420.00"),
+    "CNY", "SUPPLIER-DEMO", "PO-1847",
+)
+violations = validate_amounts(invoice)
+print(next_step(violations), invoice.invoice_total, violations[0].expected)
 ```
 
-`Decimal` 避免把二进制浮点误差混入两位小数的金额判断。生产实现还要写清舍入方式、折扣、附加费、预付金额和红字场景。Peppol BIS Billing 的金额规则展示了这种做法：行净额合计、单据级调整、未税总额、税额、含税总额和应付金额之间都有独立等式。它不是中国发票的法定模板，但规则形状值得借鉴。
+金额从字符串构造为 `Decimal`，避免先经过二进制浮点数。示例显式选择 `ROUND_HALF_UP`，生产规则仍需按适用业务确定舍入方式、折扣、附加费、预付金额和红字处理。`Violation` 保存观察值与规则期望值，原候选保持不变。订单仓储返回 `false` 表示查询完成后的明确不匹配；超时或服务不可用应保留为查询故障，交给重试或人工处理。没有违规项时返回 `continue_checks`，继续检查原文证据、税务结果和授权。
 
-如果只能先加一道业务校验，我会从金额等式开始。它确定、便宜、覆盖面广，而且失败时不会诱使系统猜测哪个原字段才对。金额不平就转人工复核；程序可以给出期望值，却不替财务人员修改原始票据。
+Peppol BIS Billing 的金额规则展示了确定性校验的形状：行净额合计、单据级调整、未税总额、税额、含税总额和应付金额之间都有独立等式。它不是中国发票的法定模板，但规则形状值得借鉴。
+
+金额等式适合作为第一道业务校验：它确定、便宜、覆盖面广，而且失败时不会诱使系统猜测哪个原字段才对。金额不平就转人工复核；程序可以给出期望值，却不替财务人员修改原始票据。
 
 订单号需要另一类证据。`PO-1847` 即使符合正则，也可能不存在、属于另一家供应商或已经关闭。查询必须同时带上供应商、法人、币种和订单状态。发票号重复、供应商身份和收款信息也应分别交给拥有事实的系统，而非继续扩大 JSON Schema。
 
@@ -95,7 +138,7 @@ def validate_order(invoice: InvoiceCandidate, orders: OrderRepository) -> None:
 - 税务平台的查验结果用于确认票面信息及发票状态；采购订单、收货和付款授权仍由企业内部系统确认。
 - 红字数电发票与蓝字发票存在关联关系，已确认用途或入账的蓝票还会影响红冲流程，不能把负金额简单视为普通发票。
 
-我不建议把“可以在官方平台查验”直接写成“存在可自由调用的公共 API”。官方公告确认了查验服务，并未因此授予任意系统自动抓取或批量调用的接口。生产系统应使用组织已经获授权的税务集成；没有集成条件时，把查验作为人工或批量导入步骤，并记录查验时间与结果。
+“可以在官方平台查验”不能被直接改写成“存在可自由调用的公共 API”。官方公告确认了查验服务，并未因此授予任意系统自动抓取或批量调用的接口。生产系统应使用组织已经获授权的税务集成；没有集成条件时，把查验作为人工或批量导入步骤，并记录查验时间与结果。
 
 全国增值税发票查验平台自己也给出了重要边界：它提供票面信息查验；若票面与实际交易不符，仍需拒收或报告。查验成功可以证明一张票在税务系统中的状态，采购合同、货物是否收到、付款账户是否可信，要继续由其他证据回答。
 
@@ -122,7 +165,7 @@ Google Document AI 的公开数据模型把 `mentionText`、`normalizedValue`、
 
 ## 失败路由和上线指标
 
-不同失败需要不同动作。解析或 Schema 错误停在接口层；金额不平、订单不匹配和重复发票进入业务拒绝；关键字段缺少锚点或存在多个候选位置时，进入字段级人工复核；新供应商、账户变更和超授权金额则交给额外审批。
+不同失败需要不同动作。解析或 Schema 错误停在接口层；金额不平进入人工复核；主数据查询确认订单不匹配或确认重复提交时进入业务拒绝。多个违规项同时出现时，拒绝优先，但保留全部违规项和原候选。关键字段缺少锚点或存在多个候选位置时，进入字段级人工复核；新供应商、账户变更和超授权金额则交给额外审批。
 
 评测也要落到入账决定，而不是 JSON parser：
 

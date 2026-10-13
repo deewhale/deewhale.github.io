@@ -7,7 +7,7 @@ tags: [Bakabase, Playnite, Hydrus, Stash, 资源管理, 软件架构]
 description: "从真实路径规则、属性来源与索引等待顺序理解 Bakabase，并用样本测试判断它与 Playnite、Hydrus、Stash 的适用边界。"
 image: /assets/images/posts/bakabase-resource-catalog.jpg
 image_alt: "一排带标签的木制卡片目录抽屉"
-last_modified_at: 2026-10-10 12:00:00 +0800
+last_modified_at: 2026-10-13 12:00:00 +0800
 ---
 
 ![一排带标签的木制卡片目录抽屉](/assets/images/posts/bakabase-resource-catalog.jpg)
@@ -35,7 +35,7 @@ last_modified_at: 2026-10-10 12:00:00 +0800
 
 这正是 Bakabase 最值得研究的部分。它面向动画、漫画、音声、电影、图集等本地收藏，允许用户决定文件或哪一级目录获得资源身份，再把路径信息、手工值和外部元数据组织成可检索属性。灵活性来自用户自己定义模型，维护成本也由同一处产生。
 
-以下分析固定在 2026 年 10 月 8 日的官方 main 提交 `74f2a1e`，版本标识为 `v2.4.0-beta.513`；当时稳定版是 2.3.0。源码中的类、字段和测试定义已经逐项核对。本机没有 .NET SDK，Docker 客户端也连接不到 OrbStack daemon，官方镜像又以 `linux/amd64` 发布而本机是 arm64，因此这次没有启动应用、镜像或测试。文中的“预期结果”来自代码路径和仓库测试断言，运行体验与性能仍留在实测边界之外。
+以下分析固定在 2026 年 10 月 8 日的官方 main 提交 `74f2a1e`（`v2.4.0-beta.513`；当时稳定版为 2.3.0）。本文基于该提交的源码与仓库测试定义，未实际运行应用或测试；运行体验与性能不在结论范围内。
 
 ## 资源粒度由路径标记决定
 
@@ -53,15 +53,15 @@ new ResourceMarkConfig
 };
 ```
 
-`MatchMode` 选择层级或正则匹配，`Layer` 从标记根路径计算相对深度，`FsTypeFilter` 区分文件与目录，`ApplyScope` 控制效果是否延伸到子目录。配置还包括 `Extensions`、`ExtensionGroupIds` 和 `IsResourceBoundary`。这些名字并非文案抽象，而是提交 `74f2a1e` 中的实际类型与字段。
+`MatchMode` 选择层级或正则匹配，`Layer` 从标记根路径计算相对深度，`FsTypeFilter` 区分文件与目录，`ApplyScope` 控制效果是否延伸到子目录。配置还包括 `Extensions`、`ExtensionGroupIds` 和 `IsResourceBoundary`。
 
 把这条规则放在 `收藏/`，第二层目录候选就是 `作者甲/作品乙` 与 `作者甲/系列丙`。修正后一条局部规则可以放在 `作者甲/系列丙/`：将它设为资源边界，再取第一层目录，外层规则会绕开这棵子树，局部规则则选出 `作品丁`。散图另用文件规则和 `.jpg` 扩展名过滤。三种管理单位由三条清楚的政策产生，无需重排原目录。
 
-仓库里的 `PathMarkResourceBoundaryTests` 提供了一个更小的真实测试工件。测试建立 `A/x`、`B/y`、`special/z` 三棵目录，外层 `Layer = 2` 的断言期望得到 3 项资源；给 `special` 增加 `IsResourceBoundary = true` 后，断言期望外层规则只留下 2 项。另一条测试又确认，边界自身以及边界内部的规则仍然生效。虽然本轮没有执行这些测试，测试构造、实现分支和预期计数三者是对齐的。
+仓库里的 `PathMarkResourceBoundaryTests` 提供了一个更小的真实测试工件。测试建立 `A/x`、`B/y`、`special/z` 三棵目录，外层 `Layer = 2` 的断言期望得到 3 项资源；给 `special` 增加 `IsResourceBoundary = true` 后，断言期望外层规则只留下 2 项。另一条测试又确认，边界自身以及边界内部的规则仍然生效。
 
 `FileSystemResolver.DiscoverFromMarks` 负责执行规则。它先展开扩展名组，再按层级或正则枚举候选，应用资源边界，最后确认文件或目录确实存在。`ResourceSyncService.SyncResources` 随后加载已有资源与 `ResourceSourceLink`，解析候选，按每批 100 项创建或更新记录。资源有增删时，它会重建父子关系；出现新资源路径时，再将相关路径标记置为 Pending。启用 `KeepResourcesOnPathChange` 时，新目录资源还会写入 `bakabase.json` 标记，所以试用原始收藏前要确认挂载权限与这一选项。
 
-我的第一个判断是：评估 Bakabase 时，应先写下每棵目录预期产生几项 Resource，再讨论封面、标签和增强器。资源单位选错以后，增加字段只是在装饰错误的对象；它修不好作品与系列之间的身份边界。
+评估 Bakabase 时，应先写下每棵目录预期产生几项 Resource，再讨论封面、标签和增强器。资源单位选错以后，增加字段只是在装饰错误的对象；它修不好作品与系列之间的身份边界。
 
 ## 属性值保留来源与选择政策
 
@@ -89,7 +89,7 @@ Id · ResourceId · PropertyId · Value · Scope
 
 Bakabase 用 SQLite 保存资源、属性、来源链接、媒体库成员和规则效果，属性搜索另有内存索引。`ResourceSearchIndex` 按 `PropertyPool → PropertyId → NormalizedValue → ResourceId` 组织等值索引，并为数值、日期等范围查询维护有序结构。`ResourceSearchIndexService` 通过一个 `SingleReader = true` 的 Channel 接收增量更新。
 
-真正有价值的发现是 `PathMarkSyncService.SyncMarks` 的调用顺序。把进度上报和异常处理拿掉，主路径可以缩成下面六行：
+更能说明同步完成边界的是 `PathMarkSyncService.SyncMarks` 的调用顺序。去掉进度上报和异常处理，主路径可缩成下面六行：
 
 ```text
 Collect effects
@@ -104,7 +104,7 @@ BatchUpdateMarkStatuses(...)
 
 这段顺序解释了“数据库已经写入”和“筛选结果已经可见”之间的差别，也给同步状态一个可检查的含义。它覆盖的是属性与媒体库同步到内存索引的这条队列顺序；文件系统、SQLite 与索引仍各自拥有状态。搜索实现还把“索引返回空集合”与“索引不可用返回 null”分开，后者才走旧数据库查询路径。
 
-我的第二个工程判断是：如果要借鉴 Bakabase 的设计，优先借鉴 barrier 的位置，而非照抄索引数据结构。索引可以替换，完成信号却必须等派生状态追上持久状态，否则用户会得到一次“同步成功但搜不到”的模糊承诺。
+如果要借鉴 Bakabase 的设计，优先借鉴 barrier 的位置，而非照抄索引数据结构。索引可以替换，完成信号却必须等派生状态追上持久状态，否则用户会得到一次“同步成功但搜不到”的模糊承诺。
 
 ## 四种工具的条件化推荐
 
@@ -119,13 +119,13 @@ Playnite、Hydrus、Stash 和 Bakabase 都能碰到文件、封面和标签，�
 
 比较快照分别是 Playnite 10.62、Hydrus v689、Stash v0.31.1（架构核对也参考同期 develop）与 Bakabase 2.4 beta。它们适合解决的对象不同，因此这张表用于选模型，不用于推导速度、容量或元数据质量。
 
-我的推荐很明确：游戏收藏直接从 Playnite 开始；以单文件归档和查重为中心时选 Hydrus；视频图片关系库优先试 Stash。Bakabase 排在这些专门工具之后，适用于至少两种资源粒度共存、目录关系需要保留、来源冲突需要按字段治理的收藏。我不赞成为“以后也许会混放”提前承担通用建模成本。
+我的推荐很明确：游戏收藏直接从 Playnite 开始；以单文件归档和查重为中心时选 Hydrus；视频图片关系库优先试 Stash。Bakabase 排在这些专门工具之后，适用于至少两种资源粒度共存、目录关系需要保留、来源冲突需要按字段治理的收藏。仅仅因为“以后也许会混放”，还不足以提前承担通用建模成本。
 
 版本和部署也会改变试用边界。2.4 beta 的源码机制不应反推成 2.3.0 的稳定承诺。官方 Docker 文档描述的是 `linux/amd64` headless 服务与浏览器界面，Linux 桌面仍是另一条产品线；服务需要持久化数据卷并使用容器内媒体路径。默认远程访问模式适合可信网络，公网暴露端口需要另行收紧。完整 Organizer 仍在设计文档中标为 Pending，实现进度表为空；现有安全移动代码拥有日志、暂存复制、长度或哈希校验以及符号链接拒绝策略，范围比完整自动整理方案小。
 
 ## 用样本表决定是否扩大范围
 
-我会把首次试用限制在复制出来的样本；只读挂载适合验证发现与查询，改名和移动留在可写副本。若时间只够做一件事，先写预期资源数。下面这张表是本次基于源码拟定、尚未运行的验收单：
+首次试用先写预期资源数，并把验证限制在复制出来的样本：只读挂载用于发现与查询，改名和移动留在可写副本。下面这张表是本次基于源码拟定、尚未运行的验收单：
 
 | 样本或操作 | 预期结果 | 失败时优先检查 |
 |---|---|---|
