@@ -5,6 +5,8 @@ description: "沿一次项目进度查询，拆开 Agno 的提示词、工具循
 image: /assets/images/posts/agno-sdk-execution-execution-map.png
 image_alt: "Agent、Team 和 Workflow 三行执行图，分别展示模型选工具、leader 委托成员和程序安排步骤"
 date: 2026-10-19 19:36:15 +0800
+display_date: 2026-10-18
+last_modified_at: 2026-10-19 20:07:46 +0800
 categories: [AI, Engineering]
 tags: [Agno, AI Agent, Python, Workflow]
 ---
@@ -129,7 +131,9 @@ print(output.content)
 
 在这个版本的受测路径中，工具记录的 `result` 是字符串，普通字典被转成 Python 字面量表示，因此这里用 `ast.literal_eval` 读取，并继续检查类型和取值；解析失败会抛出异常，阻止后面的输出。实际接口也可以在工具内明确返回 JSON，再用 JSON 解析与领域 Schema 校验。不能把这个字典字符串直接当成标准 JSON。
 
-这段检查已用真实 SDK 的离线执行结果验证：正常查询通过，工具异常与完全没有查询两种结果被拒绝。它证明查到了指定项目并检查了字段形状与计数关系，仍需将最终回答与 `facts` 对照，才能判断是否忠实使用了来源。Team 的委托记录与 Workflow 的步骤记录有不同层次，这个检查函数针对单 Agent 的直接查询，不能原样推广到全部结构。
+这段检查已用真实 SDK 的离线执行结果验证：正常查询通过，工具异常与完全没有查询两种结果被拒绝。再把查询后的预设回答改成 `4/5; no blockers`，检查仍然通过，`facts` 保持 `completed=3`、`blocker="waiting for review"`。工具执行正确，最终简报却与来源冲突。这条反例说明检查的具体范围：它核对查询与字段，还没有核对模型写出的正文。
+
+对只需要固定进度句的产品，可以直接用 `facts` 生成“已完成 3/5，等待评审”；需要自由表述时，再对照来源检查关键数字和阻塞项。`print(output.content)` 只是显示结果，接在上面的检查后面，也不会自动完成这项核对。Team 的委托记录与 Workflow 的步骤记录有不同层次，这个检查函数针对单 Agent 的直接查询，不能原样推广到全部结构。
 
 
 ![Agent、Team 和 Workflow 三行执行图，分别展示模型选工具、leader 委托成员和程序安排步骤](/assets/images/posts/agno-sdk-execution-execution-map.png)

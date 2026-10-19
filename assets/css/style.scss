@@ -178,6 +178,24 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .prose code { padding: .15em .35em; border-radius: 4px; background: var(--accent-soft); font-family: ui-monospace, monospace; font-size: .85em; }
 .prose pre { overflow-x: auto; margin: 1.8em 0; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-raised); }
 .prose pre code { padding: 0; background: none; }
+.prose table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1.6em 0;
+  border-collapse: collapse;
+  font-size: .9em;
+  line-height: 1.6;
+}
+.prose div[style*="overflow-x"] > table { display: table; overflow-x: visible; }
+.prose th, .prose td {
+  min-width: 8em;
+  padding: .6em .75em;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
 .prose img { max-width: 100%; height: auto; border-radius: 12px; box-shadow: var(--shadow); }
 .post-footer { margin-top: 60px; padding-top: 28px; border-top: 1px solid var(--line); color: var(--muted); }
 .post-footer-label { margin: 0 0 14px; font-size: 13px; font-weight: 700; letter-spacing: .08em; }

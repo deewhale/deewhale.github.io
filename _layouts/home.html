@@ -17,8 +17,10 @@ layout: default
     <div class="post-list">
       {% for post in site.posts %}
         <article class="post-card">
-          <time datetime="{{ post.date | date_to_xmlschema }}">
-            {{ post.date | date: '%Y.%m.%d' }}
+          {% assign record_date = post.display_date | default: post.date %}
+          <time datetime="{{ record_date | date: '%Y-%m-%d' }}">
+            <span>记录日期</span><br>
+            {{ record_date | date: '%Y.%m.%d' }}
           </time>
           <div>
             <h3><a href="{{ post.url | relative_url }}">{{ post.title }}</a></h3>
