@@ -5,7 +5,8 @@ description: "沿一张金额与订单号抽错、结构却完全合法的发票
 image: /assets/images/posts/structured-output-invoice-validation.jpg
 image_alt: "桌上的财务单据、计算器和笔"
 date: 2026-10-08 12:00:00 +0800
-last_modified_at: 2026-10-13 12:00:00 +0800
+display_date: 2026-09-25
+last_modified_at: 2026-10-19 20:07:46 +0800
 categories: [AI, Engineering]
 tags: [Structured Output, JSON Schema, Document AI]
 ---
@@ -36,13 +37,13 @@ tags: [Structured Output, JSON Schema, Document AI]
 
 普通 JSON mode 主要保证结果可以解析；严格结构化输出再约束字段、类型、枚举和嵌套关系。常见实现会在生成每个 token 时，根据已经生成的内容和文法屏蔽非法候选。OpenAI 公开的实现会把受支持的 JSON Schema 转换为上下文无关文法；XGrammar 展示了另一套文法执行和缓存优化方法。
 
-这项能力把括号闭合、字段名和数据形状变成接口层可以执行的契约。它对 8,240 和 8,420 却一视同仁——两者都是合法数字。OpenAI 的产品说明也明确保留了值错误、拒答、截断和 Schema 子集等处理边界。
+这项能力让接口层能够强制约束括号闭合、字段名和数据形状。它对 8,240 和 8,420 却一视同仁——两者都是合法数字。OpenAI 的产品说明也明确保留了值错误、拒答、截断和 Schema 子集等处理边界。
 
 2026 年的 Structured Output Benchmark 把结构与值分开测量。在其数据上，21 个模型大多保持很高的 Schema 合规，最佳 leaf-value 精确匹配率在文本、OCR 文档和音频上分别为 83.0%、67.2% 和 23.7%。图像组只有 209 条记录，输入还经过 OCR 和文本归一化，这些数字不能当成发票系统的生产准确率。它们说明的是评测方法：结构合规率与字段值正确率必须分别统计。
 
 ## 金额关系可以直接执行
 
-发票金额校验无需再调用一次模型。下面的 Python 3.9+ 示例只依赖标准库：候选对象保存原值，金额与订单校验分别返回违规项，调用方再决定处理路径。示例处理已经通过接口检查的有限、两位小数 CNY 金额；订单查询中的法人来自当前业务上下文。
+发票金额校验无需再调用一次模型。下面的 Python 3.10+ 示例只依赖标准库：候选对象保存原值，金额与订单校验分别返回违规项，调用方再决定处理路径。示例处理已经通过接口检查的有限、两位小数 CNY 金额；订单查询中的法人来自当前业务上下文。
 
 ```python
 from dataclasses import dataclass
@@ -111,13 +112,50 @@ def next_step(violations: list[Violation]) -> str:
     return "needs_review" if violations else "continue_checks"
 
 
+def check_candidate(
+    invoice: InvoiceCandidate,
+    orders: OrderRepository,
+    buyer_legal_entity: str,
+) -> tuple[str, list[Violation]]:
+    violations = validate_amounts(invoice)
+    try:
+        violations.extend(validate_order(invoice, orders, buyer_legal_entity))
+    except TimeoutError:
+        return "retry_order_query", violations
+    return next_step(violations), violations
+
+
+class DemoOrders:
+    """预设查询结果，仅用于离线演示，不连接订单系统。"""
+    def __init__(self, result: bool | None):
+        self.result = result
+
+    def matches(self, po, supplier_tax_id, currency, buyer_legal_entity):
+        if self.result is None:
+            raise TimeoutError("demo order query timeout")
+        return self.result
+
+
 invoice = InvoiceCandidate(
     Decimal("7292.04"), Decimal("947.96"), Decimal("8420.00"),
     "CNY", "SUPPLIER-DEMO", "PO-1847",
 )
-violations = validate_amounts(invoice)
-print(next_step(violations), invoice.invoice_total, violations[0].expected)
+for name, result in [("matched", True), ("mismatched", False), ("timeout", None)]:
+    route, violations = check_candidate(invoice, DemoOrders(result), "BUYER-DEMO")
+    print(name, route, [v.code for v in violations], invoice.invoice_total)
 ```
+
+保存并运行上面的完整代码，得到以下输出。订单结果由 `DemoOrders` 手工预设；运行验证的是校验和路由逻辑：
+
+```text
+matched needs_review ['amount_mismatch'] 8420.00
+mismatched rejected ['amount_mismatch', 'order_mismatch'] 8420.00
+timeout retry_order_query ['amount_mismatch'] 8420.00
+```
+
+三次都从同一个候选出发。第一条的订单查询通过，金额错误仍要求复核；第二条明确查到订单不匹配，因此拒绝优先，并保留两条违规；第三条尚未拿到订单事实，先保留已有金额错误、补查订单，不能把查询超时记成订单不匹配。这里只捕获演示的 `TimeoutError`；实际适配器应将已知的网络和服务不可用异常归入查询故障，其他编程错误照常暴露。三条记录中的 `invoice_total` 都仍是 `8420.00`，程序没有用期望值 `8240.00` 覆盖抽取原值。
+
+若把合计改为 `8240.00`，且订单查询通过，结果才会是 `continue_checks`。这一步只是进入后续证据和授权检查，仍未调用税务、付款或入账系统。
 
 金额从字符串构造为 `Decimal`，避免先经过二进制浮点数。示例显式选择 `ROUND_HALF_UP`，生产规则仍需按适用业务确定舍入方式、折扣、附加费、预付金额和红字处理。`Violation` 保存观察值与规则期望值，原候选保持不变。订单仓储返回 `false` 表示查询完成后的明确不匹配；超时或服务不可用应保留为查询故障，交给重试或人工处理。没有违规项时返回 `continue_checks`，继续检查原文证据、税务结果和授权。
 
