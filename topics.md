@@ -11,6 +11,8 @@ description: 按主题浏览 Pepper 的 AI 编程、软件工程、系统架构�
 
 按文章标签浏览已有内容。每个主题下的链接都指向完整文章，不生成重复正文。
 
+专题阅读：[Pi 与 MCP：运行时、工具接入与采用判断](/topics/pi-mcp/)。
+
 <div class="topic-index">
 {% assign sorted_tags = site.tags | sort %}
 {% for tag in sorted_tags %}

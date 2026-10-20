@@ -5,9 +5,10 @@ description: "拆开指令、Skill、Hook 和 MCP 的加载与执行路径，用
 image: /assets/images/posts/agent-configuration-supply-chain-mechanism.png
 image_alt: "配置来源经过加载解释抵达运行时执行，底部列出版本、行为指引、授权和隔离四类检查"
 date: 2026-10-20 09:42:17 +0800
+last_modified_at: 2026-10-20 17:14:37 +0800
 display_date: 2026-09-12
 categories: [AI, Security]
-tags: [AI Agent, Skills, MCP, Supply Chain]
+tags: [AI Agent, Skills, MCP, Supply Chain, Pi]
 ---
 
 团队安装了一个文档生成包。审查者读过 `SKILL.md`，步骤看起来只是整理内容、运行渲染器、输出 PDF。一个月后更新版本，包里增加了上传 Hook 和一个 MCP 服务启动项。文档生成的目标没变，执行对象与联网能力已经变化。
@@ -70,6 +71,10 @@ Skill 可以写“只读取当前项目”，但这段要求首先是模型接�
 
 开放 Skill 规范中的 `allowed-tools` 目前仍是实验字段，支持情况取决于实现。不能把它作为跨客户端统一强制的授权机制，也不应反向断言所有客户端都会忽略它。审查时需要针对目标客户端确认它是否识别、怎样解释及与其他规则怎样组合。
 
+Pi 的内置 MCP 可以说明配置选择与运行授权的区别。以 v1.3.0 为例，客户端先读取用户级服务配置，获得项目信任后再读取项目配置。同名完整定义会替换用户级定义；没有启动命令、地址或类型的项目条目，只能覆盖是否启用、工具暴露方式及逐工具规则，其余启动参数和凭据仍来自用户配置。逐工具规则表会被整体替换，审查新增一条规则时也要查看哪些旧规则随之消失。
+
+暴露方式决定工具从哪个入口到达模型：直接声明、经搜索加载、供脚本调用，或在该客户端中隐藏。Pi 的项目信任控制配置加载，工具调用仍使用进程和服务的有效权限。审查时因此要分别确认加载了哪份配置、当前允许哪些工具入口，以及服务凭据和运行环境实际准许什么。隐藏一个工具不会撤销同一凭据在其他客户端的访问能力。
+
 命令匹配也有自己的粒度。Claude Code 文档区分命令规则和沙箱：前者围绕调用文本匹配允许、拒绝或询问，文件系统与网络的强制边界需要相应隔离机制。拒绝某个命令拼写，并不等于从系统层撤销相关资源的全部访问路径。
 
 回到文档包。第一版只需读取输入和写出 PDF，可以把执行目录、输出目录与必要依赖限定清楚。第二版新增上传动作后，目的地、发送内容和凭据使用都成为需要决定的对象。如果团队接受上传，应明确接受哪个目标与哪些材料；如果不需要这项功能，应选择不激活该路径或在运行权限层阻止它。
@@ -124,4 +129,4 @@ for field in ("executables", "network", "mcp"):
 
 ## 主要资料
 
-Scanning the Harness: Configuration Exposures in AI Coding-Agent Supply Chains，v3；Agent Skills Specification；Claude Code Hooks Reference；Claude Code Permissions。
+Scanning the Harness: Configuration Exposures in AI Coding-Agent Supply Chains，v3；Agent Skills Specification；Claude Code Hooks Reference；Claude Code Permissions；Pi 文档《MCP Servers》《Run Pi safely》。
