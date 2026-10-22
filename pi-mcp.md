@@ -1,37 +1,35 @@
 ---
 layout: default
-title: Pi：Harness、Durable 与 MCP
+title: Pi：Harness 架构与工具调用设计
 permalink: /topics/pi-mcp/
-description: 以 Pi 1.0 为起点，深入理解编码 harness、Pi Durable 的持久执行，以及原生 MCP 与 Code Mode 的工具编排。
+description: 解析 Pi 的会话管理、Durable 持久任务恢复，以及原生 MCP 与 Code Mode 的工具调用机制。
 ---
 
 <article class="page prose" markdown="1">
 
-# Pi：Harness、Durable 与 MCP
+# Pi：Harness 架构与工具调用设计
 
-2026 年 10 月 1 日发布的 Pi 1.0，把原生 MCP、Code Mode、延迟工具加载和对话中的系统消息变化放进了稳定的编码 Agent。同日发布的 Pi Durable 则继续探索另一类需求：任务持续运行、进程中断后恢复，以及多个界面共同观察和引导会话。Durable 仍是实验包，两条产品路径需要分别理解。
+Pi 1.0 的设计可以从两个问题进入：模型之外的运行时怎样组织会话与执行；工具越来越多时，定义、数据和调用控制应放在哪里。这里的两篇文章分别沿实际实现与官方公布的演示，解释这两条路径。
 
-这个专题围绕三个工程问题展开：模型之外的 harness 怎样组织上下文与执行；进程死后，哪些工作能够继续；工具越来越多时，怎样安排发现、编排和结果回流。
+## 会话管理与持久任务恢复
 
-## Harness 与持久执行
+[Pi 的 Agent Harness 设计：会话管理与持久任务恢复](/posts/pi-agent-runtime/)沿 AgentSession、SessionManager 与 Durable 的任务实现，解释上下文怎样形成、历史怎样保存，以及运行中的工作怎样通过检查点恢复。
 
-[Pi Harness 与 Pi Durable：会话控制、持久执行与恢复设计](/posts/pi-agent-runtime/)从编码 Agent 的状态与控制权进入，追踪会话、工具、扩展和上下文装配，再深入 Durable 的持久任务、提交、重放与副作用处理。
+文章重点分析 ToolTask 的执行意图、外部动作与结果提交，继而说明 replay、任务归属、后台工作和 Code Mode 日志如何协作。参考对象是对应版本的实际代码与规范；官方演示作为具名设计原型说明其应用方式。
 
-阅读时可以带着一个具体判断：工具已经完成外部写入、却没来得及保存返回值，重启以后应该重跑、报告中断，还是先查询实际状态？正文通过真正杀死进程后的恢复对照，解释默认策略、可重放声明和业务幂等分别改变什么。
+## 原生 MCP 接入与 Code Mode 编排
 
-## Pi 1.0、原生 MCP 与 Code Mode
+[Pi 1.0 的工具调用设计：原生 MCP 接入与 Code Mode 编排](/posts/pi-mcp-tool-exposure/)先解释 Pi 将两项能力纳入同一运行时的原因，再拆解官方公开的 Linear 与 Jev 演示：查询 issue、取得评论、分类、筛选和汇总分别由谁完成。
 
-[Pi 1.0：原生 MCP 与 Code Mode 的工具编排设计](/posts/pi-mcp-tool-exposure/)从官方改变 MCP 接入方式的原因展开，比较直接工具调用、延迟发现和脚本编排。同一个任务经过三条路径后，工具定义、中间数据和决策分别留在哪里，才是判断采用方式的依据。
+direct、deferred 与 Code Mode 的比较围绕工具定义、执行控制和中间数据的位置展开。历史演示与 v1.3.0 接口分别说明，帮助读者区分设计原理、官方展示结果与实际接入条件。
 
-Code Mode 在 harness 一侧协调工具；工具本身仍通过各自的执行环境访问文件、进程或外部服务。正文中的固定版本示例用于检查真实发现和调用链，并把脚本成功、工具成功与结果可信分开观察。
+两篇以 Pi 1.0 公告说明设计背景，以 v1.3.0 固定实现分析机制；本轮资料核查日期为 2026 年 10 月 22 日。Pi Durable 仍属实验 API，与稳定编码 Agent 的发布状态分别说明。
 
-两篇文章以 1.0 公告解释设计动机，以 v1.3.0 固定实现核查后续行为，资料核查截至 2026 年 10 月 20 日。示意过程与实测结果分别标明。
+## 进一步阅读
 
-## 继续检查采用条件
-
-- [长运行 Coding Agent：中断接管与完成证明](/posts/long-running-agent-harness/)提供长任务设计的整体视角，可与 Pi 的具体实现互相对照。
-- [Agent 配置供应链：指令、Skills、Hooks 与 MCP 的安装边界](/posts/agent-configuration-supply-chain/)解释配置来源、加载代码和执行权限之间的关系。
-- [Agent 上下文压缩：缓存、重试与任务总成本](/posts/agent-compression-total-cost/)帮助检查延迟工具发现、脚本过滤与压缩各自减少了什么，以及怎样回到整次任务的质量和费用。
+- [长运行 Coding Agent：中断接管与完成证明](/posts/long-running-agent-harness/)
+- [Agent 配置供应链：指令、Skills、Hooks 与 MCP 的安装边界](/posts/agent-configuration-supply-chain/)
+- [Agent 上下文压缩：缓存、重试与任务总成本](/posts/agent-compression-total-cost/)
 
 [返回全部主题](/topics/)
 
