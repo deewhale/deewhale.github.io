@@ -19,7 +19,11 @@ description: 按主题浏览 Pepper 的 AI 编程、软件工程、系统架构�
   <section class="topic-group" id="topic-{{ forloop.index }}">
     <h2>{{ tag[0] }} <span class="topic-count">{{ tag[1] | size }}</span></h2>
     <ul>
-      {% for post in tag[1] %}
+      {% assign topic_posts = tag[1] %}
+      {% include post-order.html posts=topic_posts %}
+      {% for post_key in ordered_post_keys %}
+        {% assign post_url = post_key | split: '|' | last %}
+        {% assign post = site.posts | where: 'url', post_url | first %}
         <li><a href="{{ post.url | relative_url }}">{{ post.title }}</a></li>
       {% endfor %}
     </ul>

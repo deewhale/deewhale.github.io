@@ -19,17 +19,36 @@ layout: default
 
   <footer class="post-footer" data-nosnippet>
     <p class="post-footer-label">继续阅读</p>
+    {% include post-order.html posts=site.posts %}
+    {% assign previous_post = nil %}
+    {% assign next_post = nil %}
+    {% for post_key in ordered_post_keys %}
+      {% assign post_url = post_key | split: '|' | last %}
+      {% if post_url == page.url %}
+        {% unless forloop.last %}
+          {% assign older_index = forloop.index0 | plus: 1 %}
+          {% assign older_url = ordered_post_keys[older_index] | split: '|' | last %}
+          {% assign previous_post = site.posts | where: 'url', older_url | first %}
+        {% endunless %}
+        {% unless forloop.first %}
+          {% assign newer_index = forloop.index0 | minus: 1 %}
+          {% assign newer_url = ordered_post_keys[newer_index] | split: '|' | last %}
+          {% assign next_post = site.posts | where: 'url', newer_url | first %}
+        {% endunless %}
+        {% break %}
+      {% endif %}
+    {% endfor %}
     <nav class="post-pagination" aria-label="相邻文章">
-      {% if page.previous %}
-        <a rel="prev" href="{{ page.previous.url | relative_url }}">
+      {% if previous_post %}
+        <a rel="prev" href="{{ previous_post.url | relative_url }}">
           <span>上一篇</span>
-          <strong>{{ page.previous.title }}</strong>
+          <strong>{{ previous_post.title }}</strong>
         </a>
       {% endif %}
-      {% if page.next %}
-        <a rel="next" href="{{ page.next.url | relative_url }}">
+      {% if next_post %}
+        <a rel="next" href="{{ next_post.url | relative_url }}">
           <span>下一篇</span>
-          <strong>{{ page.next.title }}</strong>
+          <strong>{{ next_post.title }}</strong>
         </a>
       {% endif %}
     </nav>
