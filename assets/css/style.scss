@@ -31,9 +31,9 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
 .skip-link:focus { top: 10px; }
 .page-shell { width: min(1160px, calc(100% - 80px)); min-height: 100vh; margin: 0 auto; }
 .site-header { display: flex; align-items: center; justify-content: space-between; min-height: 100px; border-bottom: 1px solid var(--line); gap: 20px; }
-.brand { display: inline-flex; align-items: center; gap: 13px; font-size: 16px; font-weight: 650; letter-spacing: .02em; }
+.brand { white-space: nowrap; display: inline-flex; align-items: center; gap: 13px; font-size: 16px; font-weight: 650; letter-spacing: .02em; }
 .brand-mark { display: grid; width: 37px; height: 37px; place-items: center; color: var(--paper); background: var(--ink); border-radius: 50%; font-family: Georgia, serif; font-size: 27px; line-height: 1; padding-bottom: 5px; }
-.site-nav { display: flex; align-items: center; gap: 29px; color: var(--muted); font-size: 13px; }
+.site-nav { white-space: nowrap; display: flex; align-items: center; gap: 29px; color: var(--muted); font-size: 13px; }
 .site-nav a { padding: 10px 0; }
 .site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--ink); }
 .site-nav a[aria-current="page"] { box-shadow: 0 1px var(--accent); }
@@ -169,7 +169,7 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outlin
   .site-header { min-height: 80px; gap: 12px; }
   .brand { gap: 9px; font-size: 13px; }
   .brand-mark { width: 30px; height: 30px; font-size: 23px; }
-  .site-nav { gap: 14px; font-size: 12px; }
+  .site-nav { gap: 12px; font-size: 12px; }
   .site-nav a[href$="feed.xml"] { display: none; }
   .hero { grid-template-columns: 1fr; padding: 42px 0; gap: 30px; }
   .hero h1 { font-size: clamp(36px, 8vw, 52px); }
