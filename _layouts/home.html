@@ -18,7 +18,10 @@ layout: default
   <div class="section-heading"><div><p class="eyebrow">THE JOURNAL</p><h2 id="latest-posts">文章与记录<span class="index-count">{{ site.posts | size }}</span></h2></div><a href="{{ '/topics/' | relative_url }}">按主题浏览 <span aria-hidden="true">↗</span></a></div>
   {% if site.posts.size > 0 %}
     <div class="post-list">
-      {% for post in site.posts %}
+      {% include post-order.html posts=site.posts %}
+      {% for post_key in ordered_post_keys %}
+        {% assign post_url = post_key | split: '|' | last %}
+        {% assign post = site.posts | where: 'url', post_url | first %}
         <article class="post-card">
           <div class="post-number" aria-hidden="true">{% if forloop.index < 10 %}0{% endif %}{{ forloop.index }}</div>
           <div class="post-summary">
