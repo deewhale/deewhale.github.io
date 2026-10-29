@@ -16,7 +16,7 @@ tags: [Jev, Decision Model, Probability, AI Agent]
 
 要把这项能力用好，需要连起三件事：问题怎样定义结果的含义，概率怎样影响采用策略，错误怎样被业务流程接住。**输出属于合法类别，只建立了接口约束；应用是否应该采用它，需要任务数据和执行规则共同回答。**
 
-以下依据截至 2026 年 10 月 19 日的官方资料，示例固定 `jev-1.13.0` 与 Python SDK `typesafe-sdk==0.7.5`。文中的工单、候选类别、阈值和概率表均为假设设计；离线验证覆盖 SDK 数据解析与应用分支，未调用真实 Jev 模型。
+示例使用 `jev-1.13.0` 与 Python SDK `typesafe-sdk==0.7.5`；工单、候选类别、阈值和概率表为假设设计，用来解释概率怎样进入路由判断。
 
 ## 先看清 Jev 在系统中的位置
 
@@ -117,7 +117,7 @@ confidence = (pmax - 1/n) / (1 - 1/n)
 
 ## 用程序把判断接到下一步
 
-下面把三种问题和路由策略连成完整调用。安装 `typesafe-sdk==0.7.5`，设置自己的 `TYPESAFE_API_KEY`，保存为 `triage.py` 后运行 `python triage.py`。这段入口会请求真实服务；本文未执行该真实调用。
+下面把三种问题和路由策略连成完整调用。安装 `typesafe-sdk==0.7.5`，设置自己的 `TYPESAFE_API_KEY`，保存为 `triage.py` 后运行 `python triage.py`。运行这段入口会请求真实服务。
 
 ```python
 import json

@@ -14,8 +14,6 @@ tags: [Agent, Runtime, Sandbox, MinIO, E2B, Daytona, Modal]
 
 这里的 Agent runtime 指模型工具实际操作的**可执行工作区及其管理接口**。搭建它，既要回答“命令在哪里运行”，也要回答“这次运行读了哪份输入、断线后怎样继续、哪些文件已经交付”。这些问题连接起来，才是一项文件处理任务的完整生命周期。
 
-本文沿输入、执行、交付和恢复展开。E2B、Daytona、Modal 的官方文档和对应 SDK 提供真实参考，MinIO 的版本读取与条件写接口支撑对象交接机制。将它们组合成的任务流程是参考设计，不是某个客户的部署记录；本文没有执行托管 sandbox 或 MinIO 服务实验，也不比较未经同条件测量的启动速度。
-
 ## 一、执行环境持有什么，任务服务还要持有什么
 
 先观察一次编辑循环：Agent 读取代码，运行命令，看到错误，修改文件，再次运行。后一轮必须读到前一轮的修改，命令也必须在预期目录和依赖环境中执行。因此，可编辑 workspace 的关键是连续的文件状态，以及可观察、可控制的进程。
@@ -222,8 +220,6 @@ Modal 的官方文件系统快照示例则从另一侧说明边界：先运行�
 E2B、Daytona 和 Modal 的公开接口已经表明，可执行工作区、文件交换、后台运行和生命周期管理是一组明确的产品能力。这能支持工程选型讨论，不能直接证明市场规模或需求增速。对于一套从 MinIO 载入文件的 Agent 系统，最有价值的采用判断是：**它能否让输入可追踪、修改可观察、交付可确认，并在环境变化后解释已经发生的事实。**
 
 ## 主要参考资料
-
-资料核对时间为 2026 年 10 月 29 日。SDK 发布版本、开发主线与托管后端分别识别；客户端标签不代表所有后端节点同步上线。以下为正文实际使用的官方资料，示例均为官方参考路径或明确说明的设计推导。
 
 - E2B：《Upload Files》《Download Files》《Background Commands》《Sandbox Persistence》；核心 SDK 2.62.0 发布记录；`packages/python-sdk/e2b/sandbox_sync/commands/command.py`、`packages/python-sdk/e2b/sandbox_sync/main.py` 及对应 JS sandbox 生命周期入口。
 - MinIO：Go SDK v7.4.1 发布说明与 API 文档；`api-get-options.go`、`api-put-object.go`、`api-presigned.go`、`api-put-object-multipart.go`。正文接口行为以该稳定版本为依据。

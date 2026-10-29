@@ -11,11 +11,13 @@ categories: [AI, Engineering]
 tags: [Pi, MCP, Code Mode, Tool Search, Harness]
 ---
 
+Pi 是一个可在终端使用、也能通过 SDK 嵌入应用的 Coding Agent。它接收用户目标，组织模型调用，并通过工具读取文件、执行命令和修改代码。
+
 Pi 的官方演示里，有一项很具体的任务：从团队的 Linear issue 中找出情绪明显不满的讨论。Agent 需要先取得问题，再读每个问题的评论，用 Jev 判断文字情绪，最后返回值得进一步查看的线程。查询、判断、并发、排序涉及不同接口，把它们全部交给一个对话模型逐步传递，和把它们组织成一段程序，是两种不同的执行方式。
 
 这正是 Pi 1.0 将原生 MCP 与 Code Mode 一起纳入稳定版时要解决的问题：外部能力接入以后，harness 怎样发现接口、安排调用，并让中间数据在合适的位置处理。MCP 提供服务与工具接口，Code Mode 提供组合这些接口的执行位置；两者之间还需要一套工具呈现和统一执行机制。
 
-下面的具体过程来自 Earendil Engineering 在 2026 年 9 月 29 日《“You Said No MCP!”》中公开的浓缩会话重放，属于官方演示。以下沿这次官方演示的实际输入、处理对象与输出解释设计。历史背景以 10 月 1 日 Pi 1.0 公告为准，当前机制固定在官方仓库 `earendil-works/pi` 的 `v1.3.0`，核查日期为 2026 年 10 月 22 日。
+下面的具体过程来自 Earendil Engineering 在 2026 年 9 月 29 日《“You Said No MCP!”》中公开的浓缩会话重放，属于官方演示。下文沿这次演示解释工具如何被发现和调用，再结合 Pi `v1.3.0` 的实现拆开三种调用方式。
 
 ## 1.0 改变的是工具组合方式
 
@@ -72,7 +74,7 @@ Pi 读取用户级 `mcp.json` 与受信任项目的 `.pi/mcp.json`，连接服�
 
 CLI 可以用 `pi mcp list` 查看服务，交互会话通过 `/mcp` 查看连接和认证状态，通过 `/reload` 重载配置。这里首先要确认工具目录确实进入运行时，再检查呈现方式。把“模型没列出这个工具”直接归因于服务连接失败，会混淆这两层。
 
-SDK 宿主还承担显式装配责任。官方 `examples/sdk/14-codemode-mcp.ts` 将 `createCodemodeExtension`、`createToolSearchExtension`、`createMcpExtension` 加入 `DefaultResourceLoader`，重载资源，创建 AgentSession，然后调用 `bindExtensions` 触发会话扩展生命周期，最后进入提示与清理。CLI 的内置装配不能自动代表一个只创建了底层 SDK 对象的程序。这个官方例子说明 API 的使用顺序，本文没有将其认证后的模型调用写成已执行记录。
+SDK 宿主还承担显式装配责任。官方 `examples/sdk/14-codemode-mcp.ts` 将 `createCodemodeExtension`、`createToolSearchExtension`、`createMcpExtension` 加入 `DefaultResourceLoader`，重载资源，创建 AgentSession，然后调用 `bindExtensions` 触发会话扩展生命周期，最后进入提示与清理。CLI 的内置装配不能自动代表一个只创建了底层 SDK 对象的程序。
 
 进入脚本以前，工具需要带上足以被发现和调用的描述：namespace 缩小服务范围，名称和说明表达用途，输入定义说明参数，输出定义说明返回材料。对 Linear 演示，脚本需要的是“查询 issue”与“取得某条 issue 评论”的接口，而不是靠猜测注册名称和字段拼接请求。
 
@@ -98,7 +100,7 @@ Code Mode 提供异步的 `searchTools`、`describeTool` 和 `describeNamespace`
 
 ## 同一份 issue 分析，三条路径改变了什么
 
-用官方任务的依赖关系可以比较 direct、deferred 与 Code Mode。下面依据 v1.3.0 的实际工具机制作设计分析，官方只展示了 Code Mode 会话，没有提供该真实任务的另外两组对照运行。
+用官方任务的依赖关系可以比较 direct、deferred 与 Code Mode。三种方式的区别在于工具定义何时进入上下文，以及谁负责衔接下一次调用。
 
 在 direct 路径中，相关工具从一开始向模型声明。模型调用 issue 查询，根据返回材料决定取得哪些评论，再安排后续分析。独立的评论查询可以在同一条 assistant 消息里批量提出，运行时也支持并行，因此不能假定每条 issue 都必然多消耗一轮模型推理。中间工具结果进入模型历史，后续组合取决于模型提出的动作。
 

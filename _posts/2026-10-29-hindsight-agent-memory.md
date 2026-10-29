@@ -9,6 +9,8 @@ display_date: 2026-10-29
 tags: [Hindsight, Agent, 长期记忆, 记忆管理, 软件架构]
 ---
 
+Hindsight 为 Agent 提供跨会话的长期记忆：把对话、文档和反馈加工后保存，在后续任务中按需要取回，让 Agent 使用过去的信息。它是独立的记忆服务，应用通过接口决定何时写入、检索或围绕记忆推理。
+
 Hindsight 官方 Cookbook 中的 CableConnect，是一个客服助手模拟原型。助手可以查询客户信息、调查故障、提出派单等建议，客服人员再批准或拒绝。原型把“派技术人员之前应怎样调查、是否先运行诊断”放进了记忆查询与长期问题中。这使记忆的作用变得具体：一次人工纠正，能否在下一次相似任务中改变助手选择的动作？
 
 它的实现没有把所有模型回答自动当成经验。`memory_service.py` 关闭了集成层的自动存储对话和自动注入记忆；`agent_service.py` 选择保存客服反馈，在建议被拒绝时，组织客户对话、已经查询的工具与结果、原建议和拒绝理由。下一场任务开始，应用按场景类别构造查询，将召回材料加入助手上下文。业务动作仍经过客服审批。
@@ -16,8 +18,6 @@ Hindsight 官方 Cookbook 中的 CableConnect，是一个客服助手模拟原�
 这里已经出现三个不同的决定：应用决定什么值得记，Hindsight 决定怎样加工和取回，执行系统决定什么可以做。只看到“记忆已保存”，还无法判断后两个环节是否有效。
 
 **Agent 长期记忆的核心，是让有来源的材料成为下次决策可用的依据，并在材料变化后维护这些依据。** Hindsight 用事实抽取、后台归纳、多路召回、取证推理和持久答案承担不同部分。理解这条链，才能判断应该接入哪个接口、等待哪个状态，以及错误应该在哪一层修正。
-
-下文以截至 2026-10-29 的官方文档、稳定版 v1.1.0（提交 `a5a619b5`）和官方模拟原型为依据，必要时单独标注主线更新。CableConnect 是官方发表的模拟演示，本文没有运行其服务或模型，不把源码流程解释为客户生产效果，也不提供预设的模型输出。
 
 ## 从一次反馈开始：retain 保存的是什么
 
@@ -38,7 +38,7 @@ CableConnect 的拒绝反馈保存路径，正是把这些角色放进同一份�
 
 这几层让同一份反馈既能保留具体依据，也能被整理成更容易复用的知识。它们的可信程度仍取决于输入与加工。Fact 是抽取结果；observation 是进一步归纳；mental model 是围绕一个问题综合出的答案。越接近综合结果，越需要知道它依据了哪些材料。
 
-稳定版的实际写入链，从 Python 客户端 `retain`、`retain_batch` 进入 HTTP 的 `retain_memories`，再到 `MemoryEngine.retain_batch_async` 和 `engine/retain/orchestrator.py` 中的 `retain_batch`。输入先分块，模型从块中提取事实、实体、发生时间及关联，系统计算向量、解析实体，再将事实及其关系写入存储。
+v1.1.0 的写入链，从 Python 客户端 `retain`、`retain_batch` 进入 HTTP 的 `retain_memories`，再到 `MemoryEngine.retain_batch_async` 和 `engine/retain/orchestrator.py` 中的 `retain_batch`。输入先分块，模型从块中提取事实、实体、发生时间及关联，系统计算向量、解析实体，再将事实及其关系写入存储。
 
 向量使改换措辞后的问题仍可能找到这条反馈；实体与关系让同一个对象的不同记录能够相互连接；来源关系则让使用者有机会检查抽取是否漏掉条件。因此，Hindsight 的写入工作已经超出“把对话文本放进向量库”，它在主动改变材料的组织方式。
 
@@ -203,7 +203,7 @@ CableConnect 提供了一条适合检查的公开路径：客服纠正建议，�
 
 最后回到动作：助手是否真的先完成需要的诊断，再提出派单；出现新证据后是否调整建议；客服否决是否仍能阻止执行。把反馈写入并在回答里复述，只证明材料参与了生成。实际工具调用与审批结果，才说明经验是否影响了这次行为。
 
-更新与撤回也应该进入同一组回归：修订来源、迟到旧反馈、归档抽取错误和撤回长期答案依据，分别检查原始事实、归纳与持久内容怎样变化。采用不同输入的相似任务，能帮助区分“机械复述上一条反馈”与“按条件使用经验”。这些是根据公开原型和源码机制提出的验证动作，本文没有相应模型运行成绩。[Agent 评测体系设计](/posts/agent-evaluation-system-design/)进一步讨论了执行验证、重复运行与持续回归的组织方法。
+更新与撤回也应该进入同一组回归：修订来源、迟到旧反馈、归档抽取错误和撤回长期答案依据，分别检查原始事实、归纳与持久内容怎样变化。采用不同输入的相似任务，能帮助区分“机械复述上一条反馈”与“按条件使用经验”。[Agent 评测体系设计](/posts/agent-evaluation-system-design/)进一步讨论了执行验证、重复运行与持续回归的组织方法。
 
 成本也应按这条链估计。retain 需要抽取与向量处理，consolidation 和长期答案刷新需要模型综合；recall 可能使用 embedding 与重排；reflect 增加多步取证推理。读取一份已保存 mental model，则把反复综合转移到了后台维护。需要比较的是任务频率、更新频率与可接受的新鲜度，而不是把所有记忆操作都当成一次数据库查询。
 
@@ -217,5 +217,5 @@ Hindsight 更适合这样的需求：跨会话保留经过选择的反馈，让�
 2. 稳定源码：`hindsight-clients/python/hindsight_client/hindsight_client.py`；`hindsight-api-slim/hindsight_api/api/http.py`；`engine/retain/orchestrator.py`、`fact_storage.py`，用于核对输入、任务状态、文本保留及更新。
 3. 稳定源码：`engine/consolidation/consolidator.py`、`prompts.py`；`engine/search/retrieval.py`、`fusion.py`、`tags.py` 与 `engine/fact_budget.py`，用于核对归纳范围、检索融合及预算。
 4. 稳定源码：`engine/memory_engine.py`、`engine/reflect/agent.py`、`tools.py` 与 `engine/mental_model_refresh.py`，用于核对临时反思、持久答案刷新、人工修订与撤回依赖；以上 engine 相对路径均位于 `hindsight-api-slim/hindsight_api/` 下。
-5. 官方 Cookbook《CableConnect — AI Customer Service Copilot Demo》，固定提交 `38e17c65`；`applications/cable-co/backend/app/services/agent_service.py`、`memory_service.py`。这是已发布的模拟原型，未作为生产客户实践或本次实测。
+5. 官方 Cookbook《CableConnect — AI Customer Service Copilot Demo》，固定提交 `38e17c65`；`applications/cable-co/backend/app/services/agent_service.py`、`memory_service.py`。
 6. Hindsight 主线截至提交 `6decc291` 的更新对照，其中 `6da3b8a5` 用于说明迟到旧事实处理的后续增强，未混入稳定版能力。

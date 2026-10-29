@@ -13,9 +13,9 @@ tags: [Pi, Harness, Pi Durable, Runtime]
 
 一个 Agent 的会话文件可以完整保存下来，执行中的工作却未必能够接着运行。前者需要找回模型读过和说过什么；后者还需要知道工具是否开始、参数经过哪些检查、结果有没有提交、子工作由谁等待。这两种状态决定了重启以后程序能够作出怎样的判断。
 
-Pi 的 Agent Harness 设计可以沿这条区别理解。harness 是模型周围组织上下文、工具、执行与存储的运行机制。Pi Coding Agent 的 `AgentSession` 和 `SessionManager` 管理交互式编码会话；Pi Durable 则将输入、模型生成、工具调用和等待关系组织成持久任务，让应用能够接管重启后的调度。
+Pi 是一个可以在终端使用、也能通过 SDK 嵌入应用的 Coding Agent。它的 harness 负责把模型、工具和会话组织成可运行的程序。harness 是模型周围组织上下文、工具、执行与存储的运行机制。Pi Coding Agent 的 `AgentSession` 和 `SessionManager` 管理交互式编码会话；Pi Durable 则将输入、模型生成、工具调用和等待关系组织成持久任务，让应用能够接管重启后的调度。
 
-本文分析的是这些真实实现中的对象与状态变化。核心参考是官方仓库 `earendil-works/pi` 的 `v1.3.0`：从编码会话进入 `GenerationTask`、`ToolTask`，再讨论恢复和子任务归属。Pi 在 2026 年 10 月 1 日发布 1.0，将原生 MCP、Code Mode 等纳入稳定版，同时发布实验性的 Pi Durable。主产品的稳定发布没有改变 Durable 的实验 API 定位；以下资料核查截至 2026 年 10 月 22 日。
+在 Pi `v1.3.0` 中，会话管理与持久任务分别由不同组件承担。Pi 在 2026 年 10 月 1 日发布 1.0，将原生 MCP、Code Mode 等纳入稳定版，同时发布实验性的 Pi Durable。Durable 的 API 仍处于实验阶段。
 
 ## Harness 持有哪几种控制权
 
