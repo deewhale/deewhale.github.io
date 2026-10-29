@@ -6,14 +6,14 @@ image: /assets/images/posts/pi-agent-runtime-mechanism.png
 image_alt: "依据 Pi Durable v1.4.0 ToolTask 实现绘制的参数准备、execute 检查点、工具执行及按 replay 策略恢复的流程"
 date: 2026-10-20 17:03:07 +0800
 display_date: 2026-10-04
-last_modified_at: 2026-10-29 15:07:38 +0800
+last_modified_at: 2026-10-29 16:18:05 +0800
 categories: [AI, Engineering]
 tags: [Pi, Harness, Pi Durable, Runtime]
 ---
 
 Pi 是面向编码工作的 Agent 系统。终端用户通过它与模型交互，读取项目、编辑代码、执行命令；应用开发者也可以通过 SDK 或 RPC 控制同一类编码会话。模型负责提出回答与工具动作，Pi 的 harness 负责组织上下文、执行工具、处理后续输入并保存历史。
 
-当工作需要在多次交互与中断之间继续，harness 还必须决定保存哪些对象、从哪里重新推进。Pi 在这里提供两条不同路线：Coding Agent 的 AgentSession 管理交互式会话，Pi Durable 将模型生成、工具调用和等待关系变成持久任务。理解它们的设计，需要先看要持续保存的工作，再追踪每类状态如何参与下一轮执行。
+当工作需要在多次交互与中断之间继续，harness 还必须决定保存哪些对象、从哪里重新推进。Pi 在这里提供两条不同路线：Coding Agent 的 AgentSession 管理交互式会话，Pi Durable 将模型生成、工具调用和等待关系变成持久任务。两条路线保存的状态不同，因而也以不同方式接续工作。
 
 Pi 1.0 将原生 MCP 与 Code Mode 纳入稳定版，同时发布实验性的 Durable；持久 Code Mode 集成随后在 1.2 加入。下面按 `v1.4.0` 的具体实现解释会话与持久执行怎样组织，Durable 的 API 仍处于实验阶段。
 
@@ -83,7 +83,7 @@ SessionManager 保存带 `id`、`parentId` 的 JSONL 条目。当前叶节点选
 一个输入可能触发多个生成回合。`GenerationTask` 请求模型，模型响应中有工具调用时，创建对应的 `pi.tool` 子任务；生成任务把自己转入等待，记录等待对象以及 `allSettled` 等策略。工具结果到齐后，再推进后续生成。模型响应、工具执行和下一次模型请求由此拥有明确的持久衔接点。
 
 
-Pi Durable 没有把 SessionManager 的历史文件直接当作任务队列。它让 Conversation、Submission、Entries、Documents 与 Tasks 通过同一套持久存储协作。理解它们各自持有什么，比先记下一组 API 名称更有用。
+Pi Durable 没有把 SessionManager 的历史文件直接当作任务队列。它让 Conversation、Submission、Entries、Documents 与 Tasks 通过同一套持久存储协作。这些对象分别保存输入、历史、应用状态和待执行工作：
 
 | 对象 | 持有的状态 | 为什么影响恢复 |
 |---|---|---|
@@ -103,7 +103,7 @@ Durable 的一次 mutation 可以共同追加 entry、更新 document、创建 t
 
 ## ToolTask 怎样保存执行意图与结果
 
-固定 v1.4.0 的 `packages/durable/src/harness/tool.ts` 是最直接的参考对象。`ToolTask` 定义了正常调用的 `call` 阶段，以及中断后恢复使用的 `execute` 阶段。它们承担不同职责，不能把 phase 名称当成一串装饰性状态。
+固定 v1.4.0 的 `packages/durable/src/harness/tool.ts` 是最直接的参考对象。`ToolTask` 定义了正常调用的 `call` 阶段，以及中断后恢复使用的 `execute` 阶段。正常执行与中断恢复分别从这两个阶段进入。
 
 正常进入 `call` 时，运行时先找到调用记录和工具实现。模型发出的调用从 assistant entry 取得，嵌套调用从其持久输入取得。随后依次进行参数准备、校验、`beforeTool` hooks，以及对 hooks 修改后参数的再次校验。工具不存在、参数不合法或调用被阻止时，进入对应结果处理，不会继续执行目标工具。
 
@@ -144,7 +144,7 @@ ToolTask 如果从 `execute` 阶段恢复，会直接读取已保存参数与 re
 | 位于 `execute`，保存策略和当前工具策略均为 `safe` | 以保存参数重新进入工具执行 | 作者允许这项动作在中断后重跑 |
 | 位于 `execute`，不满足上述重放条件 | 结束为 interrupted 等相应结果 | 原动作可能部分执行，需要核对外部状态 |
 
-这个表只解释本工具的检查点恢复。上层任务是否取消、定义是否可用、版本迁移是否成功，同样影响工作能否继续；不存在一个脱离这些条件的“safe 开关自动恢复一切”。
+这个表只解释本工具的检查点恢复。恢复还要求上层任务允许继续、所需定义可用，并且版本迁移成功。
 
 最关键的判断是：检查点位于外部执行之前，结果记录位于之后。如果进程退出时只剩前者，运行时无法仅凭缺少结果断定工具未执行。因此默认 `unsafe` 不会自动重跑，而是报告中断可能已经部分运行。接入者要从外部状态、操作收据或工具专有的恢复接口取得进一步依据。
 
@@ -174,9 +174,9 @@ Durable 保存 ownership 关系。它与历史父节点属于不同的关系：�
 
 任务结果已经决定，但仍有归属的前台子工作等待收尾时，任务可以停在 `completing`；没有活动 run 也不必然意味着 conversation 已经 idle，等待、阻塞或收尾中的前台工作仍然影响这个判断。取消也要沿相应归属关系处理，而非只停掉最外层一条模型生成。
 
-官方 v1.0.0 的 `experimental/vacation` 是一个可以定位到源码的设计原型。它的搜索结果是预置文本，通过不同延时显露并行和恢复，不能作为真实出行检索案例。其可研究之处在于实际对象怎样连接：`research` 工具在同一次提交中创建 background 研究任务与 task-owned 子会话；研究任务的 `deliver` 阶段按 ownerTaskId 找到子会话，并用 `research:<taskId>` 提交输入；得到回答后保存报告和 `report` 阶段，再用 `research-report:<taskId>` 把报告提交回主会话。
+官方 v1.0.0 的 `experimental/vacation` 是一个可以定位到源码的设计原型。原型使用预置搜索文本与不同延时来展示并行和恢复。对象之间的连接是：`research` 工具在同一次提交中创建 background 研究任务与 task-owned 子会话；研究任务的 `deliver` 阶段按 ownerTaskId 找到子会话，并用 `research:<taskId>` 提交输入；得到回答后保存报告和 `report` 阶段，再用 `research-report:<taskId>` 把报告提交回主会话。
 
-这样，恢复中的 `deliver` 可以找到已有子会话与输入；恢复中的 `report` 可以复用已有投递身份。这里的去重仍发生在 Durable 自己的 conversation 提交中，不能推广成任意外部消息服务只投递一次。例子的意义是展示持久身份与阶段如何实际使用，不需要把其中的预置资料包装成业务效果。
+这样，恢复中的 `deliver` 可以找到已有子会话与输入；恢复中的 `report` 可以复用已有投递身份。这里的去重仍发生在 Durable 自己的 conversation 提交中，不能推广成任意外部消息服务只投递一次。
 
 background 改变等待与取消边界。后台任务仍有 owner，但普通 conversation 或 harness 的 idle 等待不会穿过这条边界等待整棵子树，普通 conversation abort 也不穿过；显式包含 background 的取消才继续传播。应用因此需要明确后台结果由谁最终接收。
 

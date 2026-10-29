@@ -7,16 +7,18 @@ image_alt: "DeepInfer DSpark 稳态解码的三次决策：CPU 使用历史置�
 date: 2026-10-22 10:47:23 +0800
 display_date: 2026-10-22
 tags: [DeepInfer, LLM Inference, MoE, Speculative Decoding, vLLM, SGLang]
-last_modified_at: 2026-10-29 15:10:11 +0800
+last_modified_at: 2026-10-29 16:32:49 +0800
 ---
 
 DeepInfer 是 DeepSeek 开源的大模型推理引擎。应用把输入文本和生成参数交给它，它负责载入权重、管理请求与缓存，在多个计算设备上安排模型执行，再把生成结果交回应用。当前公开版本面向 DeepSeek-V4.1-Flash，提供离线 API 和核心执行能力；在线协议、阶段拆分与跨副本路由还需要服务层接入。
 
-理解推理引擎，可以先看它同时处理的三种工作。第一是把模型的一层计算分给多个设备，让权重和算力容纳得下。第二是在不断进入和结束的请求之间安排每一轮计算，让设备保持有效批量。第三是保存上下文和采样状态，让下一轮继续得到正确结果。模型权重给出计算规则，引擎决定这些规则怎样在真实设备和请求负载中运行。
+理解推理引擎，可以先看它同时处理的三种工作。第一是把权重放到能够容纳它们的设备上，并让多个设备分担模型计算。第二是在不断进入和结束的请求之间安排每一轮计算，让设备保持有效批量。第三是保存上下文和采样状态，让下一轮继续得到正确结果。模型权重给出计算规则，引擎决定这些规则怎样在真实设备和请求负载中运行。
 
-DeepInfer 的设计沿这三项工作相互配合：专家并行把不同请求的专家计算汇聚起来，DSpark 选择本轮值得验证的草稿，异步调度隐藏 CPU 控制等待，有限重放减少特定模型建立局部状态的计算。优化会跨层传递：专家批量改变一次验证的成本；验证长度改变请求推进速度；调度重叠使新旧状态同时在途；草稿回退又约束缓存后缀必须保留多长。
+专家并行把不同请求选中的专家计算汇聚起来，增加一次执行的批量；DSpark 根据草稿接受机会和设备耗时，选择本轮验证多少位置。异步调度让 CPU 准备下一轮的工作与设备计算重叠，有限重放则减少特定模型建立局部状态时需要重算的范围。
 
-因此，本文以请求生命周期为整体模型，再下钻四项设计，最后讨论性能数字及 vLLM、SGLang 的同层实现。比较的对象是各引擎的实际执行路径和集成责任。通用框架也在吸收这些优化，功能名录本身无法说明是否需要迁移引擎。
+这些机制会相互影响。专家批量改变一次验证的成本，DSpark 选出的验证长度又改变请求一轮能推进多远。CPU 提前调度以后，上一轮接受结果可能尚未返回，需要修正新一轮的序列与 KV 长度；草稿被拒绝时还可能回退，所以有限重放保留的缓存后缀也必须容纳回退范围。
+
+vLLM、SGLang 也在吸收这些优化。比较引擎时，需要追到目标模型实际使用的执行路径，再判断服务层还需接入什么；功能名录无法独自支持迁移决定。
 
 
 ## 一条生成请求怎样进入这些优化
@@ -38,7 +40,7 @@ prompt / token IDs + SamplingParams
     → 未结束的请求继续参与后续 step 调度
 ```
 
-实际调度还包含抢占、忽略和资源回收，因而这条主线并非不可逆的状态机。它要表达的是：一次请求长期持有输入位置、已生成 token、草稿、采样状态和 KV 缓存；一次 `step` 则从多个请求中选择本轮工作。采用投机解码后，一轮可以推进多个 token，step 数与实际输出 token 数不再相等。
+引擎在请求存续期间，围绕对应的 `Sequence` 保存输入位置、已生成 token、草稿、采样状态及相应 KV 缓存。一次 `step` 从多个请求中选择本轮要执行的工作；实际调度还包含抢占、忽略和资源回收，因此请求可能退出当前执行集合，稍后再继续。采用投机解码后，一轮可以推进多个 token，step 数与实际输出 token 数不再相等。
 
 其中 prefill 处理输入序列，建立生成所需状态；decode 基于这些状态继续生成。前者有较长输入带来的计算批量，后者同时受并发、每请求验证长度和缓存访问影响。因此，prefill 与 decode 使用相同模型，并不意味着应使用相同的并行规模和调度策略。
 
@@ -48,7 +50,7 @@ prompt / token IDs + SamplingParams
 
 DeepInfer README 也明确说明，其最初主要基于 vLLM，并受 SGLang、TensorRT-LLM 启发。研究它的重点是具体模型路径怎样组织计算与状态，而非把成熟推理系统里已有的概念重新命名。
 
-这条请求链把后续问题限定得很具体：先让本轮已经选出的计算执行得更有效，再决定值得选多少工作，最后检查有哪些状态不必完整重建。
+对每轮已经选出的请求，专家层能汇聚多大批量，会影响验证的成本；要验证多少草稿，又会改变下一轮请求推进的位置。计算布局、工作量与跨轮状态因此需要一起考虑。
 
 
 ## Wide EP：让专家计算形成批量，再处理最慢的 rank
@@ -84,7 +86,7 @@ DeepInfer 的真实处理链比“定期把热门专家复制一下”更完整�
 
 这是一个带容量约束的确定性贪心方案。它依据已观察到的分布改善下一阶段布局，未来输入分布改变以后仍要重新统计。更频繁重排能更快响应，也会增加统计、同步和权重移动成本。
 
-策略输出也只是布局。`shuffle.py` 继续检查哪些旧槽位可以直接复用，哪些需要卡内复制，哪些需要远端权重；原位更新还要防止源权重先被覆盖。权重搬完再更新 physical→logical、logical→physical 和副本计数，后续执行才能按新布局访问正确权重。把新映射算出来和让执行真正使用它，中间有明确的数据移动与一致性要求。
+新布局确定后，`shuffle.py` 还要据此搬动权重：检查哪些旧槽位可以直接复用，哪些需要卡内复制，哪些需要远端权重；原位更新还要防止源权重先被覆盖。权重搬完再更新 physical→logical、logical→physical 和副本计数，后续执行才能按新布局访问正确权重。把新映射算出来和让执行真正使用它，中间有明确的数据移动与一致性要求。
 
 官方 `tests/models/test_eplb_policy.py` 检查映射自洽、确定性、全零与尖峰负载、多副本等情况。这类测试回答策略输出是否合法。真实收益还要观察每步最慢 rank 的负载、权重搬移成本和最终延迟；映射合法并不能替代吞吐测量。
 
@@ -94,7 +96,7 @@ DeepInfer 的真实处理链比“定期把热门专家复制一下”更完整�
 
 vLLM 的《Expert Parallel Deployment》把 EP 组描述为 TP×DP；TP 为 1 时，Attention 在各 DP rank 处理不同请求，专家分布在 EP 组内。其 EPLB 同样有窗口统计、冗余专家与周期重排，并提供异步负载均衡。额外专家副本占用权重显存，与可用于 KV 的容量共同竞争。
 
-SGLang 集成的 EPLB 也依据专家激活统计放置或复制专家。`EPLBManager` 形成新的位置元数据后，按层分批更新权重与位置，并有是否触发重排的条件。因此，“DeepInfer 会复制热点专家，另外两家只会均分”不符合当前实现。
+SGLang 集成的 EPLB 也依据专家激活统计放置或复制专家。`EPLBManager` 形成新的位置元数据后，按层分批更新权重与位置，并根据触发条件决定是否重排。三家都要处理热点专家，比较时需要继续看统计、重排与权重移动怎样进入实际执行。
 
 SGLang 的 TBO／SBO 还会把不同 micro-batch 的计算与 dispatch／combine 穿插，或用通信前后 hook 隐藏共享专家计算。这是在设备内重叠通信与计算；后文 DeepInfer 的异步调度则主要重叠 CPU 控制与设备执行。二者优化不同等待，可以同时存在，不能只凭“异步”两个字比较高低。
 
@@ -113,11 +115,11 @@ DeepInfer 生产设计每次生成 5 个草稿 token，并由 confidence head �
 
 若只看置信度，可以设置一个阈值，超过阈值就验证；若只看草稿长度，可以一律验证满 5 个。两种方案都没有回答多验证一个位置要付出多少设备时间。
 
-`MTPVarlen.schedule` 把这个问题具体化。它接收当前序列的草稿与接受率历史，同时持有一条硬件性能曲线：不同 `graph_size` 对应的 forward 耗时。graph size 表示实际执行图能容纳的 query 规模；调度工作量增加时，可能落入更大的执行图，而非让耗时连续、匀速地上升。
+`MTPVarlen.schedule` 接收当前序列的草稿与接受率历史，用这些信息估计验证草稿的收益，再用硬件性能曲线估计这批工作需要多久。曲线记录不同 `graph_size` 对应的 forward 耗时，每个 graph size 能容纳一定数量的 query。增加验证位置可能使总 query 数越过当前图的容量，转而使用更大的图，因此耗时不会随着验证长度连续、匀速地增加。
 
-这里的 query 数，计的是本轮送进目标模型的计算位置。选择验证 K 个草稿时，请求输入由“上轮最后已提交的 token + K 个草稿 token”组成，共 `1+K` 个 query；输入中的基础位置不是一个新输出 token。自回归预测向后错一位：前 K 行 logits 用于检验对应草稿，全部通过以后，最后一行才用于再采样一个新 token；若中途拒绝，则在首个拒绝行取得最终采样 token，后面的行不再贡献输出。
+query 是本轮送入目标模型的计算位置。若选择验证 K 个草稿，请求会送入“上轮最后已提交的 token + K 个草稿 token”，共 `1+K` 个位置。模型在每个位置预测下一个 token：前 K 行 logits 依次检验这 K 个草稿；若草稿全部通过，最后一行再用于采样一个新 token。若某个草稿被拒绝，就在首个拒绝行取得最终采样 token，后续各行不再贡献输出。输入中多出的那个基础位置由此提供了一次目标采样机会，而不是直接算作一个新输出 token。
 
-固定源码 `get_accept_result` 和 `finalize_verification` 因而把结果整理成“连续接受的草稿前缀 + 一个最终采样 token”，再交给结束与输出处理。预算里的基础贡献 `1` 来自这次目标采样机会，并非声称第一个 query 一定直接产生那个额外输出。忽略结束截断时，验证 K 个草稿最多推进 `K+1` 个 token；这也解释了后文默认 5 个草稿为何按满接受 6 个 token 记账。
+固定源码中的 `get_accept_result` 和 `finalize_verification` 将验证结果整理为“连续接受的草稿前缀 + 一个最终采样 token”，随后再处理结束条件与输出。调度预算把这次最终采样机会计为每请求的基础贡献 `1`；它来自哪一行 logits，取决于草稿在何处被拒绝，或是否全部通过。忽略结束截断时，验证 K 个草稿最多推进 `K+1` 个 token，所以默认 5 个草稿在满接受口径下按 6 个 token 记账。
 
 算法先为每个请求保留一次基础计算所需的预算，再按候选前缀的预测收益逐个增加验证位置。对每个候选总工作量，选择能容纳它的图，估计：
 
@@ -157,7 +159,7 @@ DeepInfer 生产设计每次生成 5 个草稿 token，并由 confidence head �
 
 vLLM 当前开发主线同时提供这两类路径。《Dynamic Speculative Decoding》描述操作者预先提供 batch size→K 的区间表；《Adaptive Verification》则让各请求的存活概率参与同一预算竞争，启动时捕获 CUDA graph，并 profile 不同形状的 step 成本，按期望接受 token／秒选工作量。DSpark 可使用训练好的 confidence head；其他受支持的 model-based drafter 可由在线估计器读取 draft logits，并用实际验证结果校准。
 
-因此，不能把 vLLM 概括成固定长度验证。其 Adaptive Verification 在该快照中默认关闭，要求 full CUDA graph 和支持设备决定 query 长度的 attention backend，并有 LoRA、流水线并行等组合限制。算法存在、配置生效和目标组合产生收益，是逐层需要核实的条件。
+vLLM 的 Adaptive Verification 在该快照中默认关闭，要求 full CUDA graph 和支持设备决定 query 长度的 attention backend，并有 LoRA、流水线并行等组合限制。部署版本包含算法以后，还需满足这些条件才能走到该路径；收益则要在目标组合中测量。
 
 SGLang 也要区分 EAGLE 的自适应 tier 与新的 DSpark 路径。前者按 batch 档跟踪真实接受长度的移动平均，调整整批的 draft steps；`DSparkWorkerV2` 接入的 `DSparkVerifyPlanner` 才会用 confidence 的前缀乘积，规划各请求不同长度的验证。
 
@@ -170,7 +172,7 @@ SGLang 这个版本的实际成本来源是 `--speculative-dspark-sps-table-path
 
 如果 CPU 每轮都等待设备采样结束，读回接受结果，再处理状态、选择下一轮 batch，设备就会在 CPU 后处理与调度期间出现空档。DeepInfer 默认启用异步调度，让 CPU 先准备下一轮，把这段工作与设备计算重叠。这条机制在项目中称为 ZOS，展开为 zero-overhead batch scheduler；后文的 ZOS 路径就是这里的 CPU／设备重叠执行路径。官方 Q&A 明确说明其思路借鉴 SGLang 和 NanoFlow。
 
-新的问题是信息时间。CPU 开始调度下一轮时，上一轮的真实接受长度和最新 confidence 可能还在设备上。若强制读回全部结果再决策，就重新引入了要隐藏的等待；若直接相信旧长度，又可能把 token 位置、KV 位置或验证长度算错。
+CPU 开始调度下一轮时，上一轮的真实接受长度和最新 confidence 可能还在设备上，尚未返回给 CPU。若强制读回全部结果再决策，就重新引入了要隐藏的等待；若直接相信旧长度，又可能把 token 位置、KV 位置或验证长度算错。
 
 DeepInfer 将控制拆开：CPU 先决定本轮总共做多少 query，设备再用较新的信息决定各请求分到多少，最后由实际验证确定接受多少。三次决策依赖不同信息，不能互相代替。
 
@@ -248,7 +250,7 @@ SWA bounded replay 选择只重放末尾有限区间，并把区间外的滑窗�
 
 ### 官方等价性程序究竟检验什么
 
-这部分有一个真实、明确的验证对象：`examples/yoco/yoco_equiv.py`，配套文档题为《YoCo mask/compact equivalence verification》。它直接比较两种实现是否计算了同一个截断设计。
+`examples/yoco/yoco_equiv.py` 比较 mask 与 compact 是否实现同一种截断计算，配套文档为《YoCo mask/compact equivalence verification》。程序从元数据与模型输出两层检查两种布局的对应关系。
 
 L1 检查元数据：同一请求在 mask 与 compact 布局下，SWA pivots、可见 key、存储槽位和压缩 key 范围能否对应。它不加载权重，但仍依赖当前仓库的编译扩展和设备条件。
 
@@ -264,12 +266,12 @@ bounded replay 回答的是另一步：已经利用跨层 block KV 之后，如�
 
 更直接的同层比较也已经存在。vLLM 当前主线的 `CacheConfig.swa_bounded_replay` 针对 DeepSeek-V4.1，把 SWA KV 排除在前缀缓存之外，命中后重算末尾窗口，并让最后 KV-source 之后的层只执行尾窗；该路径要求 Model Runner V2。SGLang 的 `deepseek_v4.py` 同样有 decoder SWA bounded replay，从最后 KV-source 层开始进入有限尾窗，并检查 source、index、candidate 等结构条件。
 
-所以，用 DeepInfer 的有限重放对照另外两家的普通前缀匹配，再推导它们都必须完整重算 decoder，会得出错误结论。当前源码显示相同设计方向已进入通用框架的具体模型路径。至于三者的窗口、数值路径、近似误差及全部配置组合是否等价，现有源码核查不能代替同条件运行和质量比较。
+三套引擎的具体模型路径都已有有限重放，比较应进一步对齐重放窗口、数值路径、近似误差及配置组合。源码能说明各自怎样重建状态；这些路径是否得到等价结果，还需要同条件运行和质量比较。
 
 
 ## 性能数据要区分执行轮数与真实输出
 
-同一篇文章里，不能把官方动态验证的估算表、公开 benchmark 的满接受记账值，以及实际用户输出吞吐当作同一种数字。
+前面的动态验证表给出官方估算吞吐，公开 benchmark 则从执行轮数按满接受口径换算吞吐；用户实际得到多少输出，还需累计真实新输出 token。三类数字的计数起点不同。
 
 `examples/benchmark.py::measure_decode` 测量干净时间窗内的 step 间隔，得到 `avg_SPS`，单位始终是 steps/s。打印吞吐时，它按请求数、CP 规模与最大草稿长度换算。`examples/README.md` 明确这是 full-acceptance accounting；默认 `nextn=5`，相当于按每请求每 step 6 个 token 记账。
 
@@ -292,7 +294,7 @@ README 的 prefill 图使用 4 张 SM100，decode 图使用 64 张 SM100，分�
 | 怎样使动态验证生效 | 置信前缀收益、硬件时间曲线与运行时修正协作；异步下再修正请求长度 | 共同 K 查表之外已有每请求预算；Adaptive Verification 启动 profile 成本，并受 graph／backend／并行条件约束 | EAGLE tier 之外已有 DSpark 每请求预算；该 planner 需要 SPS 成本表，缺表可退化为全验证 |
 | 复用以后还需重建什么 | block KV 与 SWA 分开；consumer query 压缩与 full KV 投影分路 | 前缀块缓存外，V4.1 MRv2 已有有限 SWA 重放 | Radix／HiCache 外，V4 模型路径已含 decoder 有限尾窗 |
 
-从请求入口到真实输出计数，以上机制形成了同一条优化链。Wide EP 与 EPLB决定计算在哪些设备形成批量，DSpark决定本轮投入多少验证工作，异步修正保证旧结果尚在途时仍能继续，bounded replay则决定下一阶段必须重建多少状态。任何一项少算，都要同时保住它依赖的请求身份、缓存位置和采样语义。
+从请求入口到真实输出计数，以上机制形成了同一条优化链。Wide EP 与 EPLB 决定计算在哪些设备形成批量，DSpark 决定本轮投入多少验证工作，异步修正保证旧结果尚在途时仍能继续，bounded replay 则决定下一阶段必须重建多少状态。任何一项少算，都要同时保住它依赖的请求身份、缓存位置和采样语义。
 
 DeepInfer 当前的明确发布范围，为深入研究 V4.1-Flash 在指定硬件上的优化提供了相对集中的参考。vLLM、SGLang 则已有可接的在线入口与更多模型、backend 的配置面。后者可以减少部分服务集成工作，前者把特定模型的执行路径暴露得更集中；这些差异没有直接给出吞吐高低。
 
@@ -305,11 +307,11 @@ DeepInfer 当前的明确发布范围，为深入研究 V4.1-Flash 在指定硬�
 
 随后可以沿官方现有对象推进验证：先用 `offline_inference.py` 检查输入、生成和采样输出；用 EPLB 策略测试核映射不变量，再观察真实负载和搬权重成本；用 YoCo L1／L2 区分索引实现与截断算法；最后在同一负载下改变 DSpark、重放等配置，记录有效吞吐、延迟与质量。
 
-最小对照的配置入口可以直接定位到 README 的 Feature details and configuration：`DEEPINFER_ENABLE_MTP_VARLEN=1` 打开 confidence-scheduled 变长验证，设为 `0` 关闭这项动态长度机制，最大草稿长度由 `DEEPINFER_USE_NEXTN_DECODE` 控制。YoCo 的 `DEEPINFER_YOCO_PREFILL_TRUNCATION_MODE` 接受 `off`、`mask`、`compact`；V4.1 的 README 推荐 `compact` 配合 `DEEPINFER_YOCO_PREFILL_KEEP_TOKENS=140`。mask／compact 的同语义对照入口是 `examples/yoco/README.md` 的 L1 metadata 与 L2 end-to-end output 小节，完整重放与截断质量则另作比较。两次对照应保持其他配置一致。这些是依据真实官方入口提出的评估步骤，不能当作已经完成的测试结果。
+README 的 Feature details and configuration 给出了对照所需的开关：`DEEPINFER_ENABLE_MTP_VARLEN=1` 打开 confidence-scheduled 变长验证，设为 `0` 关闭这项动态长度机制，最大草稿长度由 `DEEPINFER_USE_NEXTN_DECODE` 控制。YoCo 的 `DEEPINFER_YOCO_PREFILL_TRUNCATION_MODE` 接受 `off`、`mask`、`compact`；V4.1 的 README 推荐 `compact` 配合 `DEEPINFER_YOCO_PREFILL_KEEP_TOKENS=140`。mask／compact 的同语义对照入口是 `examples/yoco/README.md` 的 L1 metadata 与 L2 end-to-end output 小节，完整重放与截断质量则另作比较。两次对照应保持其他配置一致。这些对照分别检验动态预算、布局等价与截断质量，结果需要按各自的观察对象解释。
 
 需要可重复对照时，还要固定影响结果的组合条件。官方对 NVIDIA 的确定输出说明要求 batch-invariant 模式、关闭 MTP_VARLEN，并为每条序列传入固定 `seq_seed`。随机种子控制采样随机数，batch invariant 则处理 batch 组成导致的数值路径变化，二者承担不同责任；这些条件也不能外推成跨硬件或跨版本逐位一致。
 
-DeepInfer 提供了观察推理优化的一组具体设计对象：专家副本改变计算分布，验证预算改变本轮工作，异步修正维护跨轮状态，有限重放改变建立状态的成本。对已经采用 vLLM 或 SGLang 的系统，先检查目标模型路径是否已有这些实现，通常比单凭项目名称决定迁移更有依据。只有在相同模型、硬件、工作负载与质量约束下得到真实收益，并明确服务层集成责任以后，换引擎才成为可评估的工程选择。
+已经采用 vLLM 或 SGLang 的系统，可以先检查目标模型路径是否已有所需实现，以及当前 backend 和配置是否使它生效。若仍准备切换引擎，再用相同模型、硬件、工作负载与质量约束做对照，并把服务层需要另接的组件计入成本。真实收益足以覆盖迁移与后续维护，才有采用依据。
 
 
 ## 主要资料
