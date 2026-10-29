@@ -1,12 +1,12 @@
 ---
 layout: post
 title: "Paperclip 与 Agno AgentOS 对比：从 Agent 接入到任务交付"
-description: "Paperclip 是什么，Agno、AgentOS 与 Control Plane 怎样配合？沿官方接入流程与 Company 任务示例，讲清 Agent 从哪里来、谁分派和执行工作、结果如何审查，以及两套产品的选择与组合。"
+description: "从任务领取、Team 成员委托、Workflow 步骤传参与 Company 交付审查，解释 Paperclip 与 Agno AgentOS 如何组织 Agent 工作，以及两套产品的选择和组合。"
 image: /assets/images/posts/paperclip-agentos-control-runtime-mechanism.png
 image_alt: "Paperclip 从组织配置、adapter 接入走向工作交付；Agno 从 SDK 组件、AgentOS 服务走向 Control Plane 操作界面，另可启用 Company 管理长期任务和审查"
 date: 2026-10-29 10:08:20 +0800
 display_date: 2026-10-29
-last_modified_at: 2026-10-29 17:41:09 +0800
+last_modified_at: 2026-10-29 18:11:44 +0800
 categories: [AI, Engineering]
 tags: [Paperclip, Agno, AgentOS, AI Agent, Agent Harness]
 ---
@@ -19,7 +19,7 @@ Agno 是构建 Agent 的 Python 框架，开发者在代码里配置模型、工
 
 Paperclip 的官方首次使用教程从建立组织开始。启动服务、进入工作台后，先建立组织，再到 Goals 中补充目标。目标说明为什么做，项目归集相关工作，任务（Issue）写明具体要做什么。Agent 则记录承担工作的角色，以及它与其他角色的分工和汇报关系。
 
-教程选择 CEO 作为第一个 Agent。这个名称表示岗位职责：读取目标、提出策略、向其他角色分派工作。要让这个岗位真正工作，用户还得选择要接入的 Agent，准备它需要的模型账号或凭证，并配置工作环境。Paperclip 保存一个叫 CEO 的角色，并不意味着它另外生成了一个模型。
+教程选择 CEO 作为第一个 Agent。这个名称表示岗位职责：读取目标、提出策略、向其他角色分派工作。要让这个岗位真正工作，用户还得选择要接入的 Agent，准备它需要的模型账号或凭证，并配置工作环境。
 
 Paperclip 通过 adapter（适配器）连接岗位与用户自己的 Agent。适配器根据接入方式启动或调用 Agent，传递岗位配置，并接收运行信息。用户可以选择匹配的适配器，将已有的 Agent 接入任务流程。
 
@@ -29,11 +29,17 @@ Paperclip 通过 adapter（适配器）连接岗位与用户自己的 Agent。�
 
 官方 Watching Agents Work 教程展示了这样的第一轮协作：CEO 读取目标和指令，提出策略，用户审查策略，然后让后续任务进入看板。在这个教程里，人负责确认方向，Agent 负责进一步拆分和分派。能否拆出有用的任务，依然依赖执行者的判断与材料；Paperclip 保存这些决定，并提供继续推进工作的入口。
 
-看板中的任务可以由用户分派，也可以由有相应职责的 Agent 拆成子任务、交给其他角色。执行者取得分派后，读取任务要求和讨论，在自己的工作环境中处理，再通过 Paperclip 接口更新进展、补充评论或提交产物。项目附带的 Paperclip skill 说明了这套操作方法，包括怎样查找和领取任务、报告阻塞、回报结果。它是执行者需要遵循的操作指引，实际执行仍由接入的 Agent 完成。
+### 分派、唤醒和领取怎样接起来
 
-这里要区分两种记录。任务页保存一项工作的要求、讨论和产出；Agent 的 Live Run 或 Runs 保存某次启动的执行过程。一项任务可以经过多次运行，也可以换人处理或被退回，任务记录仍然存在。排查某次执行为什么出错，要看运行记录；判断工作是否交付，则要看产物和审查结果。
+组织关系说明一个角色向谁汇报，具体要执行哪项工作则记录在 Issue 上。用户或有相应职责的 Agent 创建任务，写入要求和指派对象；管理 Agent 也可以将工作拆成子任务，分别指派。Agent 被唤醒后，按项目附带的 Paperclip skill 读取触发原因与自己的分派，选择本次要处理的任务。
 
-Paperclip 因此主要通过任务组织角色间的协作：这个角色负责什么，处理后交给谁，下一位沿用哪些材料，都围绕持续存在的工作记录展开。某个角色在一次运行中怎样调用模型、选择工具，则由接入的 Agent 自己负责。
+这份 skill 规定了工作前的领取动作：执行者向 Issue 的 checkout 接口提交自己的 Agent 标识、预期可领取的任务状态，并带上本次运行的 ID。服务端先检查任务的依赖等前提，再用带条件的数据库更新取得任务。条件包括任务状态仍符合预期、指派对象允许当前 Agent 领取、运行引用没有被另一项执行占用。成功时，服务端把任务置为 `in_progress`，将领取和执行引用指向本次 run。
+
+把检查条件和写入放进同一次更新，使“我刚才看到任务可领取”与“我取得了处理权”成为两件有明确区别的事。两个运行同时争同一任务时，其中一个更新成功后，另一个就可能不再满足条件。对于已有其他有效执行占用的冲突，官方 skill 要求停止处理该项任务，不再争抢重试。同一 run 的重复领取，以及旧运行已经结束后的引用清理，则由服务端按具体状态处理。
+
+领取成功后，执行者继续读取任务、祖先任务及评论，取得工作要求与已有材料，再在自己的环境中执行。处理完成时，通过 Paperclip 接口留下结果、更新状态或报告阻塞；这些写入带着当前 run 标识，使本次处理能追溯到具体运行。下一位角色可以从持续保存的任务记录继续，而不必依赖上一位仍保持着一段模型对话。
+
+这里有两种互相补充的记录。Issue 保存工作要求、讨论和产出，Agent 的 Live Run 或 Runs 保存某次启动的过程。一项工作被退回后可以再次启动，原来的要求与结果仍留在任务中；排查某次执行出错，则沿关联的 run 查看。Paperclip 保存任务处理权和工作进展，接入的 Agent 负责这次运行中的模型与工具调用。
 
 ## Agno：把执行逻辑写成组件，再提供运行接口
 
@@ -65,41 +71,102 @@ app = agent_os.get_app()
 
 Control Plane 则是操作这套服务的网页入口。用户在网页中添加 OS，填入自己运行的 AgentOS 地址；连接后，界面列出服务注册的 Agent、Team 和 Workflow，用户可以测试组件、查看会话和运行数据。能查看哪些会话、知识和追踪内容，取决于服务端启用了什么。执行进程仍在用户部署 AgentOS 的地方运行，能够访问的资源也由该部署决定。
 
-需要多个执行者时，Agno 提供两种组织方式。Team 在协调模式下由 leader 根据当前输入选择成员、委托工作，再根据成员返回的结果继续处理。每个成员有自己的指令和工具；leader 负责协调，成员之间仍有上下文的区分。Workflow 则由开发者预先写明步骤和控制流，安排函数、Agent 或 Team 按相应顺序和分支执行。
+## Agno 怎样编排成员：模型委托与程序控制流
 
-两者的区别在于谁决定分工和顺序：Team 把一部分决定交给协调者模型，Workflow 把关键安排放进流程定义。它们都可以注册到 AgentOS，对外成为一个可调用组件。调用者发送一次请求，组件内部可能执行工具循环、委托成员，也可能推进多个步骤。具体执行机制见[《Agno SDK：Agent、Team 与 Workflow 的执行机制》](/posts/agno-sdk-execution/)。
+Agno 的 Agent 已经有自己的模型、指令和工具循环。把多个 Agent 放在一起后，还要决定谁取得当前工作、给它什么输入，以及拿到结果以后调用谁。Team 和 Workflow 将这些决定放在不同位置。
 
-Paperclip 的用户先配置岗位和工作，再接入 Agent；Agno 的开发者先定义执行组件，再将其提供给应用或用户调用。这个入口差异影响采用时要准备什么，却还没有涵盖两者在长期工作管理上的重叠。
+### Team：leader 通过工具把工作委托给成员
+
+官方 Coordinate Mode 示例创建了 Researcher 和 Writer 两个 Agent。Researcher 的职责是整理事实，Writer 的职责是将材料组织成文章。Team 的指令要求信息类请求先交给 Researcher，再让 Writer 整理，最后汇总。这里的顺序写在给 leader 的指令中，由 leader 的模型在运行时据此选择成员和生成委托内容。示例中的关键配置是：
+
+```python
+team = Team(
+    name="Research & Writing Team",
+    mode=TeamMode.coordinate,
+    model=OpenAIResponses(id="gpt-5.2"),
+    members=[researcher, writer],
+    instructions=[
+        "For informational requests, ask the Researcher to gather facts first,",
+        "then ask the Writer to polish the findings into a final piece.",
+        "Synthesize everything into a cohesive response.",
+    ],
+)
+```
+
+这段配置摘录中的 `researcher` 和 `writer` 是前面已创建的成员对象。Team 的 `model` 用于 leader，成员各自保留自己的模型和指令。
+
+SDK 将成员信息和委托工具提供给 leader。成员信息告诉模型有哪些可选成员、各自的 ID、名称和职责；委托工具则让选择变成可执行的调用。以协调模式中的 `delegate_task_to_member(member_id, task)` 为例，模型生成成员 ID 和具体任务，SDK 才根据 ID 找到成员并运行它。成员名称和 `role` 中的职责说明，参与 leader 对成员的选择。
+
+一次委托沿着以下路径执行：
+
+1. leader 接收用户输入、Team 指令和成员信息，模型决定自己回答，还是调用委托工具。
+2. 模型选择委托时，输出目标 `member_id` 和发给成员的 `task`。SDK 解析工具参数、查找目标成员，把委托内容交给该成员运行。
+3. 成员使用自己的模型、指令和工具处理输入。需要调用搜索等工具时，由该成员的 SDK 工具循环执行；它完成后返回结果。
+4. 返回内容成为 leader 这次工具调用的结果，加入 leader 的消息上下文。leader 再调用模型，可以继续委托、补充要求，或组织最终答复。
+
+SDK 还会将成员运行关联到父 Team run，并在工具记录中保存子运行 ID。查看一次 Team 执行时，可以沿委托找到成员处理的过程；这层父子关系记录的是执行过程。
+
+在这个示例中，“先研究、后写作”是给 leader 的协调要求。leader 要将它落实为委托调用，也要把研究结果放进后续写作所需的输入。改变指令或输入，可能改变它选择的成员、委托次数和任务内容。开发者提供了可选成员和协调要求，具体这一次怎样分工由模型决定。
+
+成员上下文还需要单独配置。默认 `determine_input_for_members=True`，成员取得的是 leader 编写的 `task`。`add_team_history_to_members` 与 `share_member_interactions` 默认关闭，前者控制是否附加 Team 历史，后者控制是否附加本次运行中已有的成员交互。因此，Writer 需要 Researcher 的结果时，leader 应将结果写入新委托，或显式开启相应共享；只把两位成员放进 `members`，并没有完成材料交接。
+
+### Workflow：由步骤定义决定调用顺序和数据交接
+
+官方 Workflow Using Steps 示例同样做文章处理，但定义了 research、writing、editing 三个 Step，分别绑定研究、写作和编辑 Agent，再按这个顺序放入 `Steps`。研究 Agent 配置搜索工具，写作和编辑 Agent 处理前面产生的材料。省去模型定义，编排关系是：
+
+```python
+research_step = Step(name="research", agent=researcher)
+writing_step = Step(name="writing", agent=writer)
+editing_step = Step(name="editing", agent=editor)
+
+article_creation_sequence = Steps(
+    name="article_creation",
+    steps=[research_step, writing_step, editing_step],
+)
+article_workflow = Workflow(steps=[article_creation_sequence])
+```
+
+这段摘录保留官方示例的步骤关系。工作流用 `StepInput` 携带原始输入和前序结果，用 `StepOutput` 保存当前步骤的输出。函数步骤可以直接读取 `StepInput` 中的这些数据；Agent 步骤的消息装配则优先取最近一个前序输出的内容，内容非空时直接作为输入，否则使用原始输入。
+
+在这条顺序流程中，research 收到原始主题，writing 收到 research 的结果，editing 收到 writing 的草稿。后续 Agent 若还需要原始要求或更早步骤的材料，就要在上一步输出中保留它们，或显式组装输入。工作流保存着前序结果，与每个 Agent 实际收到哪些内容，需要分别设计。
+
+research 是否需要搜索、搜索什么，仍由研究 Agent 的模型和工具循环决定；research 完成后调用 writing，则由已定义的步骤顺序决定。writing 返回草稿后，Workflow 执行器按 `steps` 列表调度 editing，并将草稿作为它的输入。
+
+这也给修改流程一个明确位置：需要先审核研究材料，就在 research 与 writing 之间加入相应步骤；需要按结果分支，就在流程定义中提供条件判断。Team 适合将分工留给模型根据材料调整；Workflow 适合把必须执行的顺序、交接和控制条件写入程序。一个 Workflow 步骤也可以调用 Team，在固定流程中的局部保留动态协作。
+
+这两种对象都能注册到 AgentOS。应用只需调用这个 Team 或 Workflow 的运行接口，内部的成员委托和步骤推进由相应组件完成。接入服务和定义编排是两件相连的工作：AgentOS 负责找到要运行的组件，组件内部的 Team 或 Workflow 决定输入怎样变成输出。更多 SDK 对象见[《Agno SDK：Agent、Team 与 Workflow 的执行机制》](/posts/agno-sdk-execution/)。
 
 ## Company：保存工作要求，把执行结果交给审查
 
 一次接口调用结束后，工作可能还没被接受。它属于哪个项目、当初要求是什么、结果为什么被退回，都需要保存到下一次执行。Agno 的 Company 在运行服务之上提供了这些工作记录。
 
-Company 需要显式启用。它把工作分成 Product、Project 和 Task 三层。官方 `06_execute_tasks.py` 示例中，Product 是名为 SDK 的产品，Project 是其中的一轮 Release 发布项目，Task 则是这轮发布里“起草发布说明”（Draft release notes）的具体任务，要求整理经过审查的变更。Task 保存要求、执行者、状态和结果；它下面的 run 记录一次具体执行。程序另外注册一个 ID 为 `draft` 的 Workflow，供这项任务调用。
+Company 需要显式启用。它把工作分成 Product、Project 和 Task 三层。官方 `06_execute_tasks.py` 示例创建名为 SDK 的 Product，建立其中的一轮 Release 发布项目，再创建“起草发布说明”（Draft release notes）的 Task，要求整理经过审查的变更。Task 保存工作要求和证据引用；程序另外注册 ID 为 `draft` 的 Workflow，负责取得任务输入并返回待审文本。
 
-这个 Workflow 只包含确定性函数：按代码读取 Task 传入的上下文，直接返回待审文本，不调用模型。它演示的是任务材料怎样送进执行组件、结果怎样回到工作记录，发布说明的质量仍留待审查。它是官方示范程序，并非真实项目的发布说明生产记录。
+### 从 Task 到已注册组件
 
-示例先创建 Task，写入 brief 和证据引用，再将 Task 转为 `ready`，绑定已注册的 `draft` Workflow。此时，工作要求和执行者已经确定。接着发起运行请求，AgentOS 把任务材料交给对应 Workflow，通过持久队列安排 worker 执行，并保存 Task 与这次运行的关联。worker 负责从持久队列领取工作，再调用相应的已注册组件执行。
+示例将 Task 转为 `ready` 时，同时写入 `executor_type="workflow"`、`executor_id="draft"`。这一步明确了工作范围和执行组件。随后，应用为这项 Task 发起 `attempt=1` 的运行请求。Company 按执行类型和 ID 从 AgentOS 的注册表查找组件，将工作交给已经定义好的 Workflow；组件的选择来自 Task 上的绑定。
 
-Workflow 正常返回后，run 显示完成，Task 进入 `in_review`。这分别表示两件事：程序做完了本次步骤，产出正在等待接受。审查通过后，Task 才进入 `done`；需要修改时，工作记录继续保留，使后续处理能够关联原来的要求和结果。
+交给组件的输入也有明确结构。Company 将 Task 的 `brief`、公司级与当前产品的 wiki 正文、`evidence` 序列化为 JSON，并为已接受的执行添加第四项 `execution_context`，其中包含任务标识和交付要求。官方的 `draft` Workflow 包含确定性函数，它读取这份输入、直接返回文本，不调用模型。将执行者换成 Team 时，同一类 JSON 先成为 Team 的输入，再由 leader 决定怎样拆成发给成员的 `task`。
 
-要把这条路径接通，还需要满足执行条件。Task 必须绑定运行层能够解析的已注册组件；任务执行使用持久队列，需要支持的存储和 worker。官方示例分别配置 Company 记录与队列存储，其中队列使用 PostgreSQL。启用 Company、建立 Task、注册组件、配置队列和 worker，合起来才构成从工作要求到实际执行的路径。
+运行请求复用 AgentOS 对应组件的运行接口，并设置后台执行、非流式返回。持久队列保存待执行工作，worker 根据已注册组件标识找到 Workflow 或 Team，再调用它的执行方法。因此，执行组件需要配置数据库，AgentOS 需要启用持久队列与 worker；只建立 Task 记录还没有接通执行。官方示例分别配置 Company 记录与队列存储，其中队列使用 PostgreSQL。
 
-普通问答接口或 Workflow 运行仍可以直接调用，不必先建立 Product、Project 和 Task；Company 将这套已有执行能力进一步接入长期工作和交付审查。
+### Task、尝试与成员 run 分别保存什么
+
+同一 Task 下，`attempt` 标识一次执行尝试，Task ID 与 attempt 共同确定该次运行的标识。官方示例连续两次提交 `attempt=1`，检查返回的是同一个 run ID。这使调用方在响应丢失后可以重试提交，取得已有执行，而不是每次请求都新建一次尝试。
+
+组件正常返回后，run 显示完成，Task 进入 `in_review`。程序步骤结束与交付被接受分别记录；审查通过后，Task 才进入 `done`。需要修改时，后续尝试继续关联同一项工作的要求和审查记录。若执行者是 Team，这次 Task 运行下面还可以有多个成员 run：Company 关联整项工作的一次执行，Team 的父子运行关系说明这次执行内部委托过谁。
+
+普通问答和 Workflow 仍可以直接调用。Company 增加的是产品、项目和任务记录，将已有执行能力接入接受工作、执行尝试和交付审查。它没有替代 Team 的成员选择或 Workflow 的步骤控制。
 
 ![Paperclip 与 Agno 的两条使用路径：组织配置并接入执行者，或定义组件并启动服务；两者都可以把执行关联到持续工作的记录与审查](/assets/images/posts/paperclip-agentos-control-runtime-mechanism.png)
 
 *图：上排是 Paperclip 的岗位与工作，通过 adapter 连接 Agent，并在工作台跟踪交付；下排是 Agno SDK 定义的组件，经 AgentOS 提供 API，再由 Control Plane 连接操作。Company 可以在运行服务之上启用，保存长期任务和审查记录；普通组件运行可以直接进入 AgentOS。*
 
-## 多个 Agent 协作时，谁决定分工
+## 从成员协作回到长期任务
 
-比较多 Agent 能力，需要看角色怎样跨任务交接，以及成员怎样在一次组件运行内分工。
+Paperclip 的角色交接经过 Issue：上一位留下结果、分派后续工作，接收者在唤醒后领取任务、读取材料。两位角色之间传递的是工作记录与处理责任，各自内部怎样调用模型和工具，由接入的 Agent 决定。
 
-Paperclip 的角色协作可以跨任务、跨多次唤醒。CEO 提出策略、建立任务、分派给其他角色；接收工作的角色处理后，在任务里回报或安排交接。不同岗位可以接入不同的 Agent。任务记录把这些 Agent 的工作连起来，让人看到哪一个角色对哪项工作负责。
-
-Agno Team 首先组织一次组件运行中的成员协作。leader 根据输入委托成员，收到结果后继续处理，应用无需为每次成员委托建立长期任务。需要跨运行保存产品责任、工作要求和验收记录时，可以再启用 Company：Task 交给一个 Team，Team 内部再决定成员分工。
-
-因此，“支持多个 Agent”还不足以说明协作方式相同。Paperclip 的典型路径先建立岗位与工作的持续关系；Agno Team 的典型路径先解决一次输入怎样由多个成员共同处理，再由 Company 将执行组件接入长期工作。Agno 的 Workflow 还允许把步骤和分支直接写成程序，以减少执行时临时决定顺序的部分。
+Agno Team 的成员交接经过委托工具及其返回值，Workflow 的交接经过步骤输入输出。Company 在外层保存整项工作的要求、执行尝试与审查；Task 绑定 Team 时，内部仍按委托机制协作，绑定 Workflow 时则按流程定义推进。开发者可以分别修改长期任务的执行者，以及执行组件内部的成员和流程。
 
 两者都可以接入已有的 Agent。Paperclip 使用适配器连接；Agno 除了原生 Agent，也支持通过已适配的外部 Agent 参与 Team 和 Workflow。接入时可以保留已有 Agent 内部的模型与工具调用逻辑，不必全部改写成原生 Agno Agent。
 
@@ -127,7 +194,7 @@ Paperclip 的通用 HTTP adapter 可以向远端服务发请求。远端返回�
 
 取消也要沿这条调用关系追下去。停止等待 HTTP 响应后，远端作业可能还在运行；任务改为不再进行时，已经发出的工具操作也可能继续。需要确认实际执行者有没有收到取消、有没有停止，以及已经发生的外部写入怎样处理。
 
-AgentOS 的持久队列保存待执行工作及运行关联，使请求进程退出后仍有继续处理的依据。但队列重试可能重新执行一次 run：如果上一次已经对外部系统写入成功，重新执行就可能再次写入。要避免重复，仍需为操作提供标识、实现幂等处理，或先查询已有结果。保存了工作和运行记录，并不等于外部操作自动只发生一次。
+AgentOS 的持久队列保存待执行工作及运行关联，使请求进程退出后仍有继续处理的依据。但队列重试可能重新执行一次 run：如果上一次已经对外部系统写入成功，重新执行就可能再次写入。要避免重复，仍需为操作提供标识、实现幂等处理，或先查询已有结果。
 
 ### 审查工作方向、工具动作与交付物
 
@@ -153,7 +220,7 @@ Agno 的 usage、metrics 用于观察消耗，并发配置用于限制同时运�
 
 组合时，要先确定谁保存一项工作的要求，谁有权分派、退回和接受结果。假如这些决定归 Paperclip Issue 管，AgentOS 就承担一次或多次具体执行。连接层保存 Issue、Paperclip 运行和 AgentOS run 的关联，持续取得结果、错误与费用，再回报任务。把服务地址填入 HTTP adapter，只完成了发请求的入口，后续结果仍需要接回来。
 
-如果 Company Task 同时独立管理相同要求和验收，两边就可能分别改派、退回或发起执行。这时需要规定哪一边可以修改工作范围，另一边怎样跟随；重试时也要区分，是查询已有运行，还是确实开始新一次尝试。两张任务有相同标题，并不能让这些决定自动同步。
+如果 Company Task 同时独立管理相同要求和验收，两边就可能分别改派、退回或发起执行。这时需要规定哪一边可以修改工作范围，另一边怎样跟随；重试时也要区分，是查询已有运行，还是确实开始新一次尝试。
 
 Paperclip 与 Agno AgentOS 的典型入口不同，长期任务管理又使它们成为部分重叠的选择。判断应落在手头的工作上：从哪里提出要求，由谁推进执行，在哪里接受结果。先确认一套产品能把这条路径走到哪一步，再决定是否值得维护两套系统之间的连接。
 
@@ -162,5 +229,6 @@ Paperclip 与 Agno AgentOS 的典型入口不同，长期任务管理又使它�
 - Paperclip 官方文档：What is Paperclip、Create Your First Company、Hire Your First Agent、Watching Agents Work、Execution Policy、Costs & Budgets。
 - Paperclip 源码：HTTP adapter、任务服务、heartbeat 调度与恢复实现。
 - Agno 官方文档：SDK Introduction、Run Your First AgentOS、Connect Your AgentOS、Control Plane、Approvals Overview、Durable Queue。
+- Agno 官方编排示例：Coordinate Mode、Workflow Using Steps。
 - Agno Company 官方示例：Company README、`06_execute_tasks.py`。
 - Agno `v3.1.11` 发布说明：外部 Agent 与 Team、Workflow 的接入。
