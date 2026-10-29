@@ -1,12 +1,12 @@
 ---
 layout: post
-title: "结构化输出：从 Schema 合规到发票入账"
-description: "沿一张金额与订单号抽错、结构却完全合法的发票，展示金额校验、主数据查询、原文证据和中国数电发票查验如何共同决定能否自动入账。"
+title: "结构化输出的业务校验设计：从 Schema 到发票处理"
+description: "以 XGrammar、Peppol 金额规则和 Document AI 为参照，解释约束生成、字段正确、来源锚点与权威查询怎样共同决定发票处理路径。"
 image: /assets/images/posts/structured-output-invoice-validation.jpg
 image_alt: "桌上的财务单据、计算器和笔"
 date: 2026-10-08 12:00:00 +0800
 display_date: 2026-09-25
-last_modified_at: 2026-10-19 20:07:46 +0800
+last_modified_at: 2026-10-29 15:12:59 +0800
 categories: [AI, Engineering]
 tags: [Structured Output, JSON Schema, Document AI]
 ---
@@ -15,217 +15,97 @@ tags: [Structured Output, JSON Schema, Document AI]
 
 *摄影：Kelly Sikkema / Unsplash；裁切。*
 
-下面是一组为说明校验机制而设计的假设字段，不对应真实发票或采购订单。
+结构化输出让模型按指定字段、类型和嵌套关系生成数据，软件因而能够稳定解析结果。文档处理中，它把原来的自然语言回答变成可继续计算的候选记录；从这一步走到入账，还需要确认值的来源、字段之间的关系和交易事实。
 
-```json
-{
-  "net_amount": "7292.04",
-  "tax_amount": "947.96",
-  "invoice_total": "8420.00",
-  "currency": "CNY",
-  "purchase_order": "PO-1847"
-}
-```
+发票适合用来理解这种分工。金额可以具有正确格式，却来自票面上的错误区域；订单号可以满足正则，却不属于当前供应商；票面查验通过，也不能独自说明货物已接收。不同错误需要不同证据，继续扩大Schema不会自动解决全部问题。
 
-这段 JSON 可以顺利反序列化。字段、类型和格式都符合约定。问题藏在值里：未税金额与税额相加应为 8,240 元；源发票上的订单号也是 `PO-1842`，并非 `PO-1847`。
+一条可信的处理路径因此要连接三件事：输出形状可用，数据与来源及业务规则相符，系统有依据决定下一步。下面以实际的结构化生成实现、Peppol金额规则和Document AI数据模型为参照，解释这几层怎样配合。
 
-如果流水线在 JSON Schema 通过后就入账，两处抽取错误会直接变成财务事实。结构化输出解决的是模型与软件之间的接口摩擦，财务系统还要判断字段是否彼此一致、是否对应真实订单，以及这些值究竟来自文档哪里。
+## 约束生成怎样让输出可解析
 
-只通过结构校验的记录适合命名为 `schema_valid_candidate`，而不是 `validated_invoice`。一个名字上的克制，可以阻止下游把“程序能接收”误读成“业务已确认”。
+普通JSON模式主要保证结果能按JSON解析，严格结构化输出进一步约束允许字段、类型、枚举及层次。模型生成时，约束解码器根据已经产生的前缀和文法，筛去不能继续形成合法结果的token。
 
-## Schema 交付稳定接口
+XGrammar的 `GrammarMatcher` 为当前生成前缀维护匹配状态，`fill_next_token_bitmask` 计算下一步允许的token，`apply_token_bitmask_inplace` 将非法候选的logit置为负无穷。采样只能在剩余候选中选择，新的token再推进匹配状态。约束由此参与每一步生成，而非等完整字符串产生以后再靠修复提示词补救。
 
-普通 JSON mode 主要保证结果可以解析；严格结构化输出再约束字段、类型、枚举和嵌套关系。常见实现会在生成每个 token 时，根据已经生成的内容和文法屏蔽非法候选。OpenAI 公开的实现会把受支持的 JSON Schema 转换为上下文无关文法；XGrammar 展示了另一套文法执行和缓存优化方法。
+这套机制使字段与分隔符更稳定，但合法候选中仍可能包含错误的金额或名称。文法检查的是“当前位置能否出现这个值的表达形式”，真实值要从输入材料和任务语义中取得。OpenAI的Structured Outputs文档同样保留值错误以及拒答、输出不完整等处理路径。
 
-这项能力让接口层能够强制约束括号闭合、字段名和数据形状。它对 8,240 和 8,420 却一视同仁——两者都是合法数字。OpenAI 的产品说明也明确保留了值错误、拒答、截断和 Schema 子集等处理边界。
+应用需要先识别生成是否完成、是否拒答，再取得结构化候选。仅仅收到HTTP成功或一段可以解析的内容，还不能把它命名为业务已验证对象。状态名称应反映已经完成的检查。
 
-2026 年的 Structured Output Benchmark 把结构与值分开测量。在其数据上，21 个模型大多保持很高的 Schema 合规，最佳 leaf-value 精确匹配率在文本、OCR 文档和音频上分别为 83.0%、67.2% 和 23.7%。图像组只有 209 条记录，输入还经过 OCR 和文本归一化，这些数字不能当成发票系统的生产准确率。它们说明的是评测方法：结构合规率与字段值正确率必须分别统计。
+## 结构合规和字段正确必须分开测
 
-## 金额关系可以直接执行
+Structured Output Benchmark评估21个模型时，观察到接近完整的Schema合规，最佳叶子值精确匹配率却分别为文本83.0%、图像来源67.2%、音频来源23.7%。其输入都经过文本规范化，图像组只有209条OCR处理的记录；这些数字描述该基准，不能当作发票生产系统准确率。
 
-发票金额校验无需再调用一次模型。下面的 Python 3.10+ 示例只依赖标准库：候选对象保存原值，金额与订单校验分别返回违规项，调用方再决定处理路径。示例处理已经通过接口检查的有限、两位小数 CNY 金额；订单查询中的法人来自当前业务上下文。
+它显露的关系具有普遍工程意义：结构评价检查结果能否被接收，字段评价检查抽取是否忠实。两者使用不同的参照物。结构对照Schema，值对照标注和来源材料。
 
-```python
-from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Protocol
+JSONSchemaBench还将约束覆盖、生成效率与质量分开评估。支持某些常用Schema，并不意味着所有关键字组合都适用；选择实现时要用自己的Schema和样本核对支持情况，而非只比较一个合规率。
 
+在发票处理里，至少应按金额、税号、发票号和订单关联等字段分别测量。高频且容易识别的字段可能掩盖关键字段错误，汇总一个平均准确率不足以决定自动路径。
 
-@dataclass(frozen=True)
-class InvoiceCandidate:
-    net_amount: Decimal
-    tax_amount: Decimal
-    invoice_total: Decimal
-    currency: str
-    supplier_tax_id: str
-    purchase_order: str
+## 金额关系交给显式规则
 
+结构合规之后，可以执行不需要模型推理的确定性检查。Peppol BIS Billing提供了真实的金额规则：BR-CO-15要求含税总额等于未税总额加增值税额，BR-CO-16再把应付金额接到预付和舍入调整。
 
-@dataclass(frozen=True)
-class Violation:
-    code: str
-    field: str
-    actual: str
-    expected: str
-
-
-def validate_amounts(invoice: InvoiceCandidate) -> list[Violation]:
-    expected = (invoice.net_amount + invoice.tax_amount).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
-    )
-    if expected == invoice.invoice_total:
-        return []
-    return [Violation(
-        "amount_mismatch", "invoice_total",
-        str(invoice.invoice_total), str(expected),
-    )]
-
-
-class OrderRepository(Protocol):
-    def matches(
-        self, po: str, supplier_tax_id: str,
-        currency: str, buyer_legal_entity: str,
-    ) -> bool:
-        """查询完成后，判断订单是否匹配且处于允许处理的状态。"""
-        ...
-
-
-def validate_order(
-    invoice: InvoiceCandidate,
-    orders: OrderRepository,
-    buyer_legal_entity: str,
-) -> list[Violation]:
-    if orders.matches(
-        invoice.purchase_order, invoice.supplier_tax_id,
-        invoice.currency, buyer_legal_entity,
-    ):
-        return []
-    return [Violation(
-        "order_mismatch", "purchase_order",
-        invoice.purchase_order, "matching eligible order",
-    )]
-
-
-def next_step(violations: list[Violation]) -> str:
-    if any(v.code == "order_mismatch" for v in violations):
-        return "rejected"
-    return "needs_review" if violations else "continue_checks"
-
-
-def check_candidate(
-    invoice: InvoiceCandidate,
-    orders: OrderRepository,
-    buyer_legal_entity: str,
-) -> tuple[str, list[Violation]]:
-    violations = validate_amounts(invoice)
-    try:
-        violations.extend(validate_order(invoice, orders, buyer_legal_entity))
-    except TimeoutError:
-        return "retry_order_query", violations
-    return next_step(violations), violations
-
-
-class DemoOrders:
-    """预设查询结果，仅用于离线演示，不连接订单系统。"""
-    def __init__(self, result: bool | None):
-        self.result = result
-
-    def matches(self, po, supplier_tax_id, currency, buyer_legal_entity):
-        if self.result is None:
-            raise TimeoutError("demo order query timeout")
-        return self.result
-
-
-invoice = InvoiceCandidate(
-    Decimal("7292.04"), Decimal("947.96"), Decimal("8420.00"),
-    "CNY", "SUPPLIER-DEMO", "PO-1847",
-)
-for name, result in [("matched", True), ("mismatched", False), ("timeout", None)]:
-    route, violations = check_candidate(invoice, DemoOrders(result), "BUYER-DEMO")
-    print(name, route, [v.code for v in violations], invoice.invoice_total)
-```
-
-保存并运行上面的完整代码，得到以下输出。订单结果由 `DemoOrders` 手工预设；运行验证的是校验和路由逻辑：
+将这两条正式规则写成便于理解的关系是：
 
 ```text
-matched needs_review ['amount_mismatch'] 8420.00
-mismatched rejected ['amount_mismatch', 'order_mismatch'] 8420.00
-timeout retry_order_query ['amount_mismatch'] 8420.00
+含税总额 = 未税总额 + 增值税额
+应付金额 = 含税总额 - 已付金额 + 舍入调整
 ```
 
-三次都从同一个候选出发。第一条的订单查询通过，金额错误仍要求复核；第二条明确查到订单不匹配，因此拒绝优先，并保留两条违规；第三条尚未拿到订单事实，先保留已有金额错误、补查订单，不能把查询超时记成订单不匹配。这里只捕获演示的 `TimeoutError`；实际适配器应将已知的网络和服务不可用异常归入查询故障，其他编程错误照常暴露。三条记录中的 `invoice_total` 都仍是 `8420.00`，程序没有用期望值 `8240.00` 覆盖抽取原值。
+这是对具名规范的抽象表达，不对应一张编造票据。原规则还处理币种、字段存在性及相应精度。它们展示了一类可执行业务约束，不是中国发票的法定模板。
 
-若把合计改为 `8240.00`，且订单查询通过，结果才会是 `continue_checks`。这一步只是进入后续证据和授权检查，仍未调用税务、付款或入账系统。
+从规则可以导出几种不同判断。如果第一项关系失败，记录内部不一致；如果第一项通过，第二项仍需结合预付与舍入判断；两项都通过，只说明这些等式成立，没有证明抽取值与原票一致。多个数字一起抄错，仍可能保持等式。
 
-金额从字符串构造为 `Decimal`，避免先经过二进制浮点数。示例显式选择 `ROUND_HALF_UP`，生产规则仍需按适用业务确定舍入方式、折扣、附加费、预付金额和红字处理。`Violation` 保存观察值与规则期望值，原候选保持不变。订单仓储返回 `false` 表示查询完成后的明确不匹配；超时或服务不可用应保留为查询故障，交给重试或人工处理。没有违规项时返回 `continue_checks`，继续检查原文证据、税务结果和授权。
+校验结果应保留观察值、期望关系和违反的规则，将原始抽取候选保持不变。系统可以提示期望合计，却不应直接用计算值覆盖原票金额，否则后续复核无法区分抽取错误与票据本身的问题。
 
-Peppol BIS Billing 的金额规则展示了确定性校验的形状：行净额合计、单据级调整、未税总额、税额、含税总额和应付金额之间都有独立等式。它不是中国发票的法定模板，但规则形状值得借鉴。
+金额计算还要保持十进制精度，并按适用规则处理折扣、附加费、币种、舍入和红字。确定性计算的收益，在于规则可复查、失败可解释；正确选择规则仍是业务建模工作。
 
-金额等式适合作为第一道业务校验：它确定、便宜、覆盖面广，而且失败时不会诱使系统猜测哪个原字段才对。金额不平就转人工复核；程序可以给出期望值，却不替财务人员修改原始票据。
+## 原文锚点让值可以回到材料
 
-订单号需要另一类证据。`PO-1847` 即使符合正则，也可能不存在、属于另一家供应商或已经关闭。查询必须同时带上供应商、法人、币种和订单状态。发票号重复、供应商身份和收款信息也应分别交给拥有事实的系统，而非继续扩大 JSON Schema。
+跨字段校验无法发现所有忠实性问题，关键值还需要原文依据。Google Document AI的实体模型将 `mentionText`、`normalizedValue`、`textAnchor` 与 `pageAnchor` 分开，页面锚点还可给出bounding polygon。
 
-## 中国数电发票的本地校验
+这些字段连起四种对象：文档中实际出现的文字，规范化之后供计算使用的值，原文文本区间，页面上的位置。复核界面由此可以从一个抽取字段返回对应区域，而不要求复核者重新寻找整张票的目标字段。
 
-国家税务总局 2024 年第 11 号公告自 2024 年 12 月 1 日起在全国正式推广数电发票。公告列出的基本内容包括发票号码、开票日期、购销双方信息、项目、数量、单价、金额、税率、税额、合计和价税合计；发票号码为 20 位，由全国统一赋予。官方同时提供税务数字账户、电子发票服务平台和全国增值税发票查验平台，用于查询、下载、入账标识和票面信息查验。
+原文与规范化值的区别尤其重要。日期或金额的格式转换仍应指向同一来源片段；从外部主数据补入的值，来源则是另一套系统。两者即使落进相同的数据类型，也需要保留不同的出处。
 
-这些本地事实会改变校验顺序：
+锚点本身同样要接受检查。OCR可能把错误区域识别为金额，抽取器也可能将另一个金额区块关联到当前字段。位置证据提高可检查性，无法单独保证其正确。关键字段可以结合锚点、值比对与确定性规则；低风险说明字段可采用不同成本的处理方式。
 
-- 对带价税合计大写、小写栏位的版式，可先将两者规范化为同一十进制值，再与金额、税额合计比较。
-- 用 `发票号码 + 开票方税号` 查询本地已处理记录，可以在进入付款流程前拦截重复提交。
-- 税务平台的查验结果用于确认票面信息及发票状态；采购订单、收货和付款授权仍由企业内部系统确认。
-- 红字数电发票与蓝字发票存在关联关系，已确认用途或入账的蓝票还会影响红冲流程，不能把负金额简单视为普通发票。
+于是，错误处理可以缩小到字段：某项有多个候选区域时，界面突出相关位置供复核；某项缺少原文时，检查它来自补全还是抽取遗漏。这样的交接比只显示一个总体置信度更容易定位问题。
 
-“可以在官方平台查验”不能被直接改写成“存在可自由调用的公共 API”。官方公告确认了查验服务，并未因此授予任意系统自动抓取或批量调用的接口。生产系统应使用组织已经获授权的税务集成；没有集成条件时，把查验作为人工或批量导入步骤，并记录查验时间与结果。
+## 外部事实由拥有事实的系统确认
 
-全国增值税发票查验平台自己也给出了重要边界：它提供票面信息查验；若票面与实际交易不符，仍需拒收或报告。查验成功可以证明一张票在税务系统中的状态，采购合同、货物是否收到、付款账户是否可信，要继续由其他证据回答。
+采购订单的编号形状正确，不足以证明它存在、属于相同主体或允许当前处理。查询还需要供应商身份、法人、币种和订单状态等关联条件。收货事实、重复提交和付款授权，也各自有权威系统。
 
-## 关键字段携带原文证据
+查询返回明确不匹配，与查询超时是不同结果。前者取得了反对当前候选的事实，后者只是尚未取得事实。把超时当作“不存在”，会把基础设施故障变成业务拒绝；把超时当作“通过”，则绕开了必要检查。
 
-跨字段等式可能在“整组数字都抄错”时继续成立。一张虚假单据也能做到内部自洽。因此，应付金额、供应商、发票号和订单号需要保留可复核的原文位置。
+中国数电发票场景还存在票面与税务状态查验。国家税务总局2024年第11号公告说明税务数字账户、电子发票服务平台与查验渠道；官方查验平台也明确，它提供的是票面信息查验，仍需区分与实际交易是否相符。
 
-```json
-{
-  "field": "invoice_total",
-  "raw_text": "¥8,240.00",
-  "normalized_value": "8240.00",
-  "page": 1,
-  "bounding_box": [0.71, 0.82, 0.91, 0.86],
-  "parser_version": "invoice-extractor-2026-10"
-}
-```
+这项分工决定系统接入的范围：通过组织获授权的税务集成取得相关结果，企业自己的采购、收货和支付系统提供交易依据。网页可查询不能直接推出任意第三方均可批量调用公共API，票面查验也不代替企业交易确认。
 
-Google Document AI 的公开数据模型把 `mentionText`、`normalizedValue`、`textAnchor` 和 `pageAnchor` 分开保存，说明这类记录可以作为解析接口的一部分。复核界面由此能够直接高亮“价税合计”区域，而非让财务人员重新浏览整张票。
+## 处理状态由证据组合决定
 
-原文、规范化值和外部补全也要分开。把 `2026/10/08` 规范化为 `2026-10-08`，仍然对应原文；从供应商主数据补出文档上没有的地址，则属于 enrichment。两者混在一个字段里，系统就失去了说明值来源的能力。
+各层检查可以汇成明确的后续动作，而不需要让模型再次对整张票作一个笼统的“可信”判断：
 
-锚点提供可定位、可复核的证据，并不保证 OCR 选中了正确数字。高风险字段适合同时要求原文锚点、确定性业务规则和权威系统匹配；备注字段可以采用更便宜的门槛。模型置信度只用于路由，阈值应按字段、版式和解析器版本在自己的标注集上校准。
-
-## 失败路由和上线指标
-
-不同失败需要不同动作。解析或 Schema 错误停在接口层；金额不平进入人工复核；主数据查询确认订单不匹配或确认重复提交时进入业务拒绝。多个违规项同时出现时，拒绝优先，但保留全部违规项和原候选。关键字段缺少锚点或存在多个候选位置时，进入字段级人工复核；新供应商、账户变更和超授权金额则交给额外审批。
-
-评测也要落到入账决定，而不是 JSON parser：
-
-| 指标 | 计算方式 | 上线门槛示例 |
+| 取得的结果 | 处理方向 | 需要保留的依据 |
 |---|---|---|
-| 结构合规率 | 可通过版本化 Schema 的输出 / 全部输出 | 自动路径必须为 100% |
-| 关键字段精确率 | 金额、税号、发票号、订单号逐字段对比标注 | 未达团队风险预算即转人工 |
-| 业务误放率 | 含已知业务错误却进入自动入账的样本 / 错误样本 | 冻结高风险测试集为 0 |
-| 证据覆盖率 | 具有有效原文锚点的关键字段 / 关键字段 | 自动入账记录必须为 100% |
-| 人工复核率 | `needs_review` / 全部单据 | 用于容量规划，不单独作为质量目标 |
+| 输出不完整、拒答或结构无效 | 停在抽取与接口处理 | 原输入、生成状态与错误位置 |
+| 金额关系失败或字段锚点歧义 | 字段或单据复核 | 原候选、规则结果、来源区域 |
+| 权威查询明确不匹配 | 按业务规则拒绝或转异常处理 | 查询条件、返回事实与时点 |
+| 权威查询尚未完成 | 重试或人工补查 | 已取得结果及具体未决项 |
+| 所需检查均通过 | 进入获授权的后续操作 | 规则、来源和外部事实的关联记录 |
 
-表中的 100% 约束只针对接口和每笔自动入账记录的必备证据；它不声称模型在所有输入上都能抽对。真实版式中的模糊扫描、跨页表格、中英文混排、红字、多个金额区块和历史模板，都应保留在冻结样本里。模型、提示词、OCR、Schema、归一化代码或业务规则变化后，用同一批样本重新回放。
+这张表是根据前述实现与规范导出的处理模型，各组织应按实际业务确定优先级。多个错误同时出现时，保留全部发现，避免下一位复核者重复调查。没有当前违规项，也只说明已执行的检查通过，是否可以入账仍由实际流程与授权决定。
 
-最终允许自动入账的记录应同时满足：结构完整，金额与其他硬规则成立，关键字段具有原文锚点，订单及供应商主数据在同一校验时点有效，发票完成适用的税务查验，风险策略允许自动处理。任何条件缺失，状态保持为 `needs_review` 或 `rejected`。
+上线观察要同时看字段精确率、错误放行、证据可定位程度和人工复核负荷。复核率下降可能来自模型改善，也可能来自门槛放宽，应对照同一批标注样本解释。Document AI的评估文档采用预测实体与测试标注比较，说明评价需要稳定参照。
 
-## 资料
+模型、OCR、提示词、Schema、归一化或业务规则变化后，都可能改变最终结果。回放应保留困难版式、跨页内容、红字、多个金额区域和缺少外部事实的路径，并检查整条处理状态，而不只重新运行JSON parser。
 
-- Introducing Structured Outputs in the API
-- XGrammar: Flexible and Efficient Structured Generation Engine for Large Language Models
-- JSONSchemaBench: A Rigorous Benchmark of Structured Outputs for Language Models
-- The Structured Output Benchmark: A Multi-Source Benchmark for Evaluating Structured Output Quality in Large Language Models
-- Peppol BIS Billing 3.0
-- Document AI Document reference
-- 国家税务总局关于推广应用全面数字化电子发票的公告
-- 关于启用全国增值税发票查验平台的公告
+结构化输出的价值，是给后续计算一个稳定起点。把约束生成、确定性规则、来源锚点与权威事实接起来，才能让候选数据沿可解释路径进入业务操作；每次检查都应回答自己真正能够回答的问题。
+
+## 主要资料
+
+- Structured model outputs；XGrammar论文与v0.2.8 GrammarMatcher实现。
+- JSONSchemaBench；The Structured Output Benchmark。
+- Peppol BIS Billing 3.0：BR-CO-15、BR-CO-16。
+- Google Document AI：Document模型、Evaluate performance。
+- 国家税务总局关于推广应用全面数字化电子发票的公告；全国增值税发票查验平台。
