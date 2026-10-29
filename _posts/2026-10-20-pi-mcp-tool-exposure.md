@@ -6,7 +6,7 @@ image: /assets/images/posts/pi-mcp-tool-exposure-mechanism.png
 image_alt: "官方 Linear 与 Jev 演示中，模型生成脚本，Linear 提供 issue 及评论，Jev 分类，脚本保存并筛选结果后交回外层模型"
 date: 2026-10-20 17:03:07 +0800
 display_date: 2026-10-16
-last_modified_at: 2026-10-29 16:18:05 +0800
+last_modified_at: 2026-10-29 19:46:36 +0800
 categories: [AI, Engineering]
 tags: [Pi, MCP, Code Mode, Tool Search, Harness]
 ---
@@ -39,7 +39,11 @@ Pi 读取用户级 `mcp.json` 与受信任项目的 `.pi/mcp.json`，连接服�
 
 CLI 可以用 `pi mcp list` 查看服务，交互会话通过 `/mcp` 查看连接和认证状态，通过 `/reload` 重载配置。这里首先要确认工具目录确实进入运行时，再检查呈现方式。把“模型没列出这个工具”直接归因于服务连接失败，会混淆这两层。
 
-SDK 宿主还承担显式装配责任。官方 `examples/sdk/14-codemode-mcp.ts` 将 `createCodemodeExtension`、`createToolSearchExtension`、`createMcpExtension` 加入 `DefaultResourceLoader`，重载资源，创建 AgentSession，然后调用 `bindExtensions` 触发会话扩展生命周期，最后进入提示与清理。CLI 的内置装配不能自动代表一个只创建了底层 SDK 对象的程序。
+SDK 的接入入口可以直接看官方 `examples/sdk/14-codemode-mcp.ts`。它先把 Code Mode、Tool Search 和 MCP 三个扩展工厂交给 `DefaultResourceLoader`，再调用 `reload()` 加载资源。此时得到的是会话将要使用的扩展定义；MCP 连接由会话开始事件推进。
+
+例程随后把 `defaultTools` 增补为 `+codemode`、`+tool_search`，把资源加载器和设置传给 `createAgentSession`。这里的加号保留其他默认工具：若改用限制整个工具集合的 `tools` 配置，反而可能把 MCP 工具排除在外。Code Mode 与搜索工具也可以随相应 exposure 的服务自动激活。
+
+会话创建后，例程先 `session.bindExtensions({})`，再发出 `session.prompt(...)`，最后 `dispose()`。`bindExtensions` 触发 `session_start`，MCP 扩展才开始后台连接。把加载、建立会话和触发生命周期分开看，就能解释为什么‘工厂已经放进数组’还不足以说明工具可用。
 
 脚本发现并调用工具，需要以下描述：namespace 缩小服务范围，名称和说明表达用途，输入定义说明参数，输出定义说明返回材料。对 Linear 演示，脚本需要的是“查询 issue”与“取得某条 issue 评论”的接口，而不是靠猜测注册名称和字段拼接请求。
 
@@ -51,7 +55,7 @@ Code Mode 提供异步的 `searchTools`、`describeTool` 和 `describeNamespace`
 
 ## direct、deferred 与 Code Mode 如何分配控制
 
-以“查询 issue、取得评论、分析并汇总”的依赖关系，可以比较 direct、deferred 与 Code Mode。三种方式的区别在于工具定义何时进入上下文，以及谁负责衔接下一次调用。
+下面的官方任务先取得一组 Linear issue，再用每条 issue 的标识查询评论，将线程文字交给 Jev 按同一标准分类，最后筛选结果。这里有两项不同依赖：取评论需要 issue 标识，分类需要实际评论。三种工具方式都能完成这些调用，差别是定义何时出现、谁保存中间集合并推进这些依赖。
 
 在 direct 路径中，相关工具从一开始向模型声明。模型调用 issue 查询，根据返回材料决定取得哪些评论，再安排后续分析。独立的评论查询可以在同一条 assistant 消息里批量提出，运行时也支持并行，因此不能假定每条 issue 都必然多消耗一轮模型推理。中间工具结果进入模型历史，后续组合取决于模型提出的动作。
 
@@ -121,13 +125,13 @@ Jev 的判断目标被明确写成一个 choice 问题：根据发言者的情�
 
 对应实现位于 `packages/coding-agent/src/extensions/mcp/tools.ts`。适配器构造返回定义，转换 MCP 结果，供脚本取得的结果去掉 `_meta`，保留业务内容及错误标记。理解这层包装后，接入者应根据当前发现的返回定义取值，而非将旧演示里的解构方式当成所有服务器的共同格式。
 
-还有一种容易漏掉的差别：请求完成，与工具完成目标，具有不同的判断位置。Promise rejected 可能来自参数校验、拦截或调用失败；一个已 fulfilled 的 MCP 返回仍可能包含 `isError: true`。随后还要判断结构值是否符合该工具的实际输出定义，最后才轮到内容是否足以支持任务结论。
+迁移评论查询时，脚本先取得 MCP 返回外包装，检查 `isError`，再从当前接口定义指明的位置读取业务数据。参数校验、拦截或调用失败也可能使 Promise rejected，两条错误路径都应进入该线程的失败记录。只有取得对应评论以后，才调用分类器；查询失败时将空对象继续送去分类，会改变被判断的材料。
 
 Code Mode 的脚本并发还要受宿主 worker 资源控制。1.4 在 worker 满载时让新脚本排队等待空位，`PI_CODEMODE_MAX_WORKERS` 可调整进程内上限；这与脚本自己限制 issue worker 的数量是两层并发。脚本内部的四条处理链不等于占用四个 VM，也不能据此估算所有会话的资源上限。
 
 分类模型也有独立的结果状态。固定版本的 `models.classify` 在 provider 失败时不一定抛出异常，应先检查 `stopReason` 是 `stop`、`error` 还是 `aborted`，必要时读取 `errorMessage`，再使用 `answers`。MCP 的 `isError` 与分类器的状态属于不同接口，不能用一项检查代替另一项。模型标识还依赖 provider 与账号可用能力，当前接入应先发现可用分类器，历史演示里的标识不代表任意账号今天都能调用。
 
-对 issue 分析，这条检查链意味着：先确认评论查询没有失败，再确认拿到了对应线程的评论，再让分类器处理这些材料。若缺少评论却仍把一个对象当成完整线程分类，程序可能运行结束，但判断依据已经变了。外层 Code Mode 返回成功，也无法替代对每项内部操作和材料完整性的检查。
+分类结果失败时，也应保留对应 issue 的失败身份，而不是记成 `none`。这样聚合得到的类别计数与失败计数共同覆盖本轮集合，后续才知道哪些线程需要重试查询或分类。这是沿当前返回接口导出的接入处理。
 
 内置 Code Mode 通过 `ctx.executeTool` 调用会话工具，使嵌套操作进入共同执行管道。参数检查、`tool_call`、`tool_result` 和已配置的扩展规则仍然参与；事件还可以保留父调用标识，帮助宿主把一次编排与内部调用关联起来。若宿主只使用底层沙箱库并直接调用某个 `execute` 函数，需要自行接好这条桥接，不能把不同集成方式的检查范围混用。
 
@@ -139,13 +143,13 @@ Code Mode 的脚本并发还要受宿主 worker 资源控制。1.4 在 worker �
 
 官方演示将分类行写入 `store("frustration", results)`，使后续追问能够复用结果。这里保存的是数据。普通 Code Mode 每次调用会启动新的 VM，上一段程序的局部变量不会自然保留；成功脚本的 store 写入作为 `codemode-store` 条目进入会话，并沿当前分支恢复可见值。
 
-这个设计适合保存结果索引和适量结构化材料。它不提供任意 JavaScript 行号、调用栈和在途 Promise 的持久快照，也不适合无限制地保存评论原文。固定实现对单值和总存储体积有预算，接入者要根据后续追问所需材料决定保存范围，并保留重新取得原始证据的身份。
+这个设计适合保存结果索引和适量结构化材料。下次追问可以按 issue ID 找到分类结果，再查询原评论；新的 VM 从保存数据继续计算。固定实现有单值及总量预算，因此应保存后续真正要复用的字段。
 
 脚本对外部世界的动作则具有自己的生命周期。一次写操作完成后，脚本可能在 store 提交以前失败。下一次没有找到进度值，只能说明这次数据没有成功保存，不能推出外部动作尚未发生。因此批量读取与批量修改需要不同的重试考虑；一段程序可组合工具，并不意味着这些工具被包在同一个可回滚事务中。
 
 QuickJS 对程序直接使用宿主文件、网络和进程接口作限制。它注入的工具仍然可能读写外部系统，权限由服务令牌、工具实现、宿主扩展规则和执行环境共同决定。把接口改成隐藏，不会撤销令牌；允许脚本调用工具，也不等于给脚本任意操作宿主的入口。
 
-若要求跨进程恢复正在推进的多步任务，需要由外层持久执行系统保存任务身份、检查点与重放关系。Pi Durable 探索的是这层责任，普通 Code Mode 的 store 不能替代它。这样的分工让调用者清楚：哪些是可复用的数据，哪些是仍需调度的工作，哪些是外部已经产生的效果。
+若要求进程中断后接续在途工具，需进一步保存任务身份、检查点与重放关系，具体见[Pi Durable 的持久恢复设计](/posts/pi-agent-runtime/)。本篇的 store 用于后续读取已有结果，外部写操作仍按目标服务的请求身份与查询规则恢复。
 
 
 

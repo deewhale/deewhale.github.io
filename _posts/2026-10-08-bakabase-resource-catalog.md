@@ -8,7 +8,7 @@ tags: [Bakabase, Playnite, Hydrus, Stash, 资源管理, 软件架构]
 description: "从资源粒度、属性来源和搜索可见性分析 Bakabase 的设计，结合官方边界测试理解配置，并比较 Playnite、Hydrus、Stash 的管理模型。"
 image: /assets/images/posts/bakabase-resource-catalog.jpg
 image_alt: "一排带标签的木制卡片目录抽屉"
-last_modified_at: 2026-10-29 16:32:49 +0800
+last_modified_at: 2026-10-29 19:43:39 +0800
 ---
 
 ![一排带标签的木制卡片目录抽屉](/assets/images/posts/bakabase-resource-catalog.jpg)
@@ -74,6 +74,12 @@ Bakabase 是管理本地媒体收藏的软件。它将文件和目录登记成�
 
 `FallbackOnEmpty` 控制资源级链是否继续：遇到禁止回退的条目，链在这里截断。空字符串和空集合视为空，数字0与布尔false则保留为有效值。这些规则决定空值是“继续找来源”还是“有意结束选择”。
 
+官方 `PropertyValueScopeResolverTests` 把这些顺序变成了能直接核对的材料。其中 `EmptyProfileScopeFallsThroughToRemainingGlobalOrder` 为同一属性保存 Av 的空白字符串、Manual 的 `Manual` 和 Synchronization 的 `Synchronized`；属性优先项只有 Av，全局顺序是 Synchronization、Manual、Av。
+
+解析器先将属性优先项接在全局顺序之前，再去重，得到 Av → Synchronization → Manual。Av 为空，跳过；Synchronization 有内容，所以显示 `Synchronized`。Manual 的值仍在，只是这次没有选中它。这里改变的是生效值，来源记录没有被覆盖。
+
+另一项测试 `ResourceCutoffStillBlocksProfileAndGlobalFallback` 为资源指定 Manual 且 `FallbackOnEmpty=false`，Manual 恰为空字符串，Av 则保存 `Profile`。资源级链先替换继承链，又在 Manual 处截断；最终没有可用值，而不是继续显示 Av。这个配置能够表达‘宁可为空，也不采用其他来源’。
+
 因此，刷新来源、保存手工值、调整来源优先级分别改变不同对象。刷新更新某Scope的记录，手工编辑写入Manual，优先级只改变如何选择现有值。界面显示另一个标题时，应同时检查各来源值和优先链。
 
 这份模型能解释冲突，但Scope本身没有提供完整修改历史。谁在什么时候修改、远端原始响应是什么、采用了哪版转换，属于更细的历史与审计要求。选型时应区分来源身份与逐次变更证据。
@@ -92,7 +98,9 @@ Bakabase使用SQLite保存资源、属性、来源链接及规则效果，属性
 → 更新路径标记状态
 ```
 
-等待通过索引队列的barrier表达。官方进度测试将持久化、索引等待、标记更新和完成排列为不同阶段，增量索引测试还覆盖合并批次中的等待边界。它们说明“标记同步完成”应晚于这条队列中此前的索引更新。
+等待通过索引队列的 barrier 表达。可以把队列看成“更新A、更新B、barrier、更新C”：消费者完成 barrier 之前的更新后才释放对应等待；后面进入的C属于下一段。官方 `WaitForPendingUpdates_WaitsAcrossCoalescedBatchBoundary` 特意让先前更新跨越有界合并批次，确认等待不会只等第一批。`Barrier_DoesNotIncludeFailureFromFollowingBatch` 则把会失败的更新排到第一个 barrier 后，确认它不会反过来使前一个等待失败。
+
+因此，barrier 是某段已入队工作的完成位置，不是‘从此所有更新都完成’。`SyncMarks` 先应用本轮属性与媒体库变化，再排入等待，等待结束才更新路径标记状态，使本轮完成对应到此前的搜索更新。
 
 数据库已写入和筛选结果已可见，因而有两个观察位置。属性值正确而筛选仍不符时，要看同步状态、等待点和查询条件；索引追上并不会替用户选择正确的来源值。搜索实现也区分空结果与索引不可用，只有后者进入数据库回退路径。
 
