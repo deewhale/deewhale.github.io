@@ -6,7 +6,7 @@ display_date: 2026-09-10
 description: "解释 Palantir Ontology 在企业系统中的位置，对象与关系如何接到索引、查询、函数和 Action，以及共享模型的治理和外部写回成本。"
 image: /assets/images/posts/palantir-ontology-operational-layer.jpg
 image_alt: "一名工业现场人员手持平板巡视厂房"
-last_modified_at: 2026-10-29 19:46:36 +0800
+last_modified_at: 2026-10-30 10:00:16 +0800
 categories: [技术, 架构]
 tags: [Palantir, Ontology, Enterprise Architecture]
 ---
@@ -100,6 +100,18 @@ Side-effect webhook 则在对象修改之后运行，用户可能先看到成功
 
 Ontology 被多个应用复用后，模型变更会影响更大的消费者集合。字段含义、主键、Link 和 Action 参数的调整，都需要考虑现有应用依赖。治理的工作因而同时包含来源质量、模型演进、动作权限和操作追踪。
 
+### 用分支同时检验模型与消费者的变化
+
+Global Branching 给共享定义的修改提供了独立开发位置。官方示例先在同一个分支上修改数据流水线的输出逻辑和字段，再在 Ontology Manager 中调整由该数据集支持的对象类型。来源结构和对象映射可以一起检查，不必先改动主分支，让现有消费者面对一份尚未配套完成的定义。对已迁入项目权限、并启用保护的对象类型、Link 或 Action 等资源，修改必须先存到分支，再经过 proposal 合并。
+
+消费者也要进入检查范围。以官方支持的 OSDK React 应用集成为例，应用、Ontology 资源和源码使用同一个 global branch；定义或资源集合变化后，在分支生成 SDK，安装更新后的依赖，再运行应用或 PR 预览。应用拿到的类型与它实际读取的分支由此对应起来。验证 Action 之前，还要先完成它会编辑的所有对象类型的分支索引；测试产生的对象编辑留在分支，不随定义一起合入主分支。Webhook 默认不在分支执行；测试时需显式启用，启用后仍使用已配置的外部目标。
+
+开发期间主分支继续变化，包含 Ontology 修改的分支需要手动 rebase：先载入主分支更新，再逐资源处理与本分支的冲突。准备交付时建立 proposal，合并检查先检查资源是否能够合入，具备相应批准权限的审查者再按资源与项目政策审核变更。检查和批准满足后，合并 Global Branching proposal，才会推进 Ontology 的合并。
+
+这套过程把定义修改、消费者测试与接受修改连在一起。合并使共享定义进入主分支，应用发布仍有自己的步骤：官方 Developer Console 流程要求在源码默认分支另行创建 release，才部署生产网站。Global Branching 负责开发期间的隔离与协同，跨开发、测试和生产环境的版本交付则由 release management 处理。因而，复用同一模型的团队既要审查定义是否正确，也要安排依赖它的应用何时采用。
+
+### 运行追踪与规则责任
+
 官方提供的 Action log 将成功提交记录成对象，帮助回答谁在什么上下文作了什么决定。它与编辑历史、失败指标各有范围：失败调用要看 Action metrics，绕过 Action 的其他编辑也不会自动生成 Action log 对象。选择观察工具应从需要回答的问题进入。
 
 读取安全与写入传播同样需要分清。当前 Permissions 文档说明，行列读取控制过滤调用动作时能看到的数据，但不能因此推断相同控制会自动保护写出的全部结果。数据标记和分类授权等机制承担下游保护，具体写入仍要检查 Action 的授权配置。
@@ -120,3 +132,5 @@ Ontology 被多个应用复用后，模型变更会影响更大的消费者集�
 - Ontology backend architecture；Object Set Service limitations。
 - Submission criteria；Action types；Permissions。
 - Webhooks；Action log；Ontology SDK overview。
+- Palantir《Global Branching》《Branching the ontology》：分支开发、rebase、资源审查与合并。
+- Palantir《Branching Developer Console applications》《Branching action types》：SDK 与分支测试的接入、Action 测试条件及应用发布。

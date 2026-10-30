@@ -8,7 +8,7 @@ date: 2026-10-20 09:42:17 +0800
 display_date: 2026-09-19
 categories: [AI, Security]
 tags: [AI Audit, Evidence, Validation, Security]
-last_modified_at: 2026-10-29 19:44:22 +0800
+last_modified_at: 2026-10-30 10:00:38 +0800
 ---
 
 安全审计需要判断可疑代码在实际条件下能否造成安全影响。本文关注低信任输入如何进入程序、经过哪些检查，最终能否影响本不应受其控制的资源。危险函数、模型置信度和报告条目只是调查线索；支持修复决定，还需要把入口、约束、资源和证据连成一条可复核的路径。
@@ -97,5 +97,5 @@ Cloudflare 的 security-audit-skill 是一套交给 Coding Agent 使用的审计
 
 ## 主要资料
 
-- Cloudflare security-audit-skill：README、SKILL、RECONNAISSANCE。
-- Cloudflare security-audit-skill：VALIDATION-AND-REPORTING、report-schema、记录验证与报告生成脚本。
+- Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：README，以及 `skills/security-audit/` 下的 SKILL、RECONNAISSANCE。
+- 同一提交的 `VALIDATION-AND-REPORTING.md`，第3—6阶段：候选验证、结构化输出、独立记录复核与报告；`report-schema.json`、`validate-findings.cjs`、`validate-coverage-ledger.cjs`。

@@ -8,7 +8,7 @@ tags: [Bakabase, Playnite, Hydrus, Stash, 资源管理, 软件架构]
 description: "从资源粒度、属性来源和搜索可见性分析 Bakabase 的设计，结合官方边界测试理解配置，并比较 Playnite、Hydrus、Stash 的管理模型。"
 image: /assets/images/posts/bakabase-resource-catalog.jpg
 image_alt: "一排带标签的木制卡片目录抽屉"
-last_modified_at: 2026-10-29 19:43:39 +0800
+last_modified_at: 2026-10-30 10:00:38 +0800
 ---
 
 ![一排带标签的木制卡片目录抽屉](/assets/images/posts/bakabase-resource-catalog.jpg)
@@ -123,8 +123,8 @@ Bakabase使用SQLite保存资源、属性、来源链接及规则效果，属性
 
 ## 主要资料
 
-- Bakabase官方README：正式版、2.4开发功能和Docker部署。
-- ResourceMarkConfig；FileSystemResolver；ResourceSyncService。
-- PathMarkResourceBoundaryTests；PropertyValueScopeResolver。
-- PathMarkSyncService；索引与进度测试。
+- Bakabase `v2.3.1` 正式版发布说明；2.4开发线提交 `31dd33b4` 的 README：开发功能与Docker部署。
+- 同一开发提交的 `ResourceMarkConfig`、`FileSystemResolver`、`ResourceSyncService`：资源规则、路径枚举与记录同步。
+- `src/tests/Bakabase.Tests/PathMarkResourceBoundaryTests.cs`；`src/legacy/Bakabase.InsideWorld.Business/Services/PropertyValueScopeResolver.cs`：资源边界测试与来源选择。
+- 同一开发提交的 `PathMarkSyncService.SyncMarks`、`PropertyValueScopeResolverTests` 与 `ResourceSearchIndexIncrementalTests`：规则效果应用、属性来源及索引等待测试。
 - Playnite、Hydrus与Stash官方README及领域模型说明。

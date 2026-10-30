@@ -6,7 +6,7 @@ image: /assets/images/posts/agno-sdk-execution-execution-map.png
 image_alt: "Agent、Team 和 Workflow 三行执行图，分别展示模型选工具、leader 委托成员和程序安排步骤"
 date: 2026-10-19 19:36:15 +0800
 display_date: 2026-10-18
-last_modified_at: 2026-10-29 19:44:15 +0800
+last_modified_at: 2026-10-30 10:02:18 +0800
 categories: [AI, Engineering]
 tags: [Agno, AI Agent, Python, Workflow]
 ---
@@ -115,9 +115,15 @@ Knowledge 还有摄入、索引与检索链路。保存聊天记录不会自动�
 
 服务层增加了部署、请求身份和资源管理。JWT 等认证配置确认调用者，工具与数据层检查其可访问范围。数据库保存运行记录。若要求中断后继续执行，还需要选择相应的持久执行路径；仅保存会话，无法确定任意一处中断应从哪里继续。
 
-启用持久队列后，待执行工作先保存到队列存储，每个 AgentOS 副本中的 `QueueWorker` 负责领取。`start()` 在服务进程中创建异步轮询任务；轮询调用存储的 `claim_job`，取得工作后再创建执行协程，按组件标识运行 Agent、Team 或 Workflow。多副本通过存储的领取与租期协调处理权，存储还保留尚未完成的工作，供后续继续领取。
+### 持久队列怎样把一次执行交接到底
 
-队列 worker 是副本内的执行管理对象，应用不必把每个 worker 另部署成独立服务。一次执行中已经写入的外部系统仍有自己的状态；重试可能再次调用同一工具，写工具需要按目标 API 的幂等和查询方式恢复。关于服务化与长期任务的取舍，见[Paperclip 与 Agno AgentOS 对比](/posts/paperclip-agentos-control-runtime/)。
+启用持久队列后，待执行工作先保存到队列存储，每个 AgentOS 副本中的 `QueueWorker` 负责领取。`start()` 在服务进程中启动轮询；`claim_job` 将一条可执行记录改为 `running`，写入领取者并增加 `attempt`，worker 再创建协程，按组件标识运行 Agent、Team 或 Workflow。worker 是副本内的管理对象，应用不必将它另部署成服务。
+
+执行结果还要回到队列记录。组件正常返回后，worker 将 job 标为 `completed`；等待人工输入的运行标为 `paused`，取消则标为 `cancelled`。遇到错误，worker 先区分能否重试：可重试且尚有次数时，记录回到 `queued`，等退避时间过去再领取；永久错误或次数耗尽则进入 `failed`。存储更新同时核对领取者和 `attempt`，旧执行者迟到的完成消息因身份不符而被拒绝，避免覆盖后来接管者的记录。
+
+执行期间，心跳刷新领取时间。进程失联、心跳停止后，超过 `lock_grace_seconds` 且仍有尝试次数的记录，可以由其他 worker 重新领取。默认 `max_attempts=1`，一次已启动工作失联后不会静默重跑；清理流程会先读取对应运行记录，核对它是否其实已经完成、取消或暂停，只丢失了队列状态写入。仍未结束且次数已经耗尽的运行，才按失联失败处理。这样能够区分“执行失败”和“执行已有结果、队列尚未登记”。
+
+重新领取也要区分执行入口。对前文这类 SDK 定义的组件，普通 job 使用相同 `run_id` 和原输入重新调用 `arun`，可能重复此前的工具动作；明确保存为暂停续接的工作，才通过 `acontinue_run` 进入已有暂停运行。队列保存的是提交、尝试和处理权，暂停记录则提供继续所需的位置与材料。决定允许几次尝试时，应同时检查工具怎样查询已有结果、怎样识别重复写入。关于服务化与长期任务的取舍，见[Paperclip 与 Agno AgentOS 对比](/posts/paperclip-agentos-control-runtime/)。
 
 ## 按控制需求组合三种结构
 
@@ -127,4 +133,4 @@ Knowledge 还有摄入、索引与检索链路。保存聊天记录不会自动�
 
 ## 主要资料
 
-Agno 官方 Tools、Teams、Delegation、Workflows、Sessions、State、Memory、Knowledge 与 AgentOS 文档。具体实现参照 Agno `v3.1.11` 的 Agent、Model、Function、Team 与 Workflow 源码；官方原型为 `01_basic_coordination.py`、`function_workflow.py` 和 `HackerNewsTools`。
+Agno 官方 Tools、Teams、Delegation、Workflows、Sessions、State、Memory、Knowledge 与 AgentOS 文档。具体实现参照 Agno `v3.1.11` 的 Agent、Model、Function、Team 与 Workflow 源码；官方原型为 `01_basic_coordination.py`、`function_workflow.py` 和 `HackerNewsTools`。队列部分另核对 v3.1.12 的 `agno/os/job_queue.py`、`agno/job_queue/config.py` 与 PostgreSQL 队列实现，分别对应领取执行、重试策略和状态写入。

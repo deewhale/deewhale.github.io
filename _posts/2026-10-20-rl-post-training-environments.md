@@ -7,7 +7,7 @@ image_alt: "二维表分别列出 SFT 和 RLVR 训练信号，以及全参数与
 date: 2026-10-20 09:42:16 +0800
 display_date: 2026-09-29
 tags: [模型后训练, RLVR, LoRA, 强化学习]
-last_modified_at: 2026-10-29 19:49:24 +0800
+last_modified_at: 2026-10-30 10:02:57 +0800
 ---
 
 模型后训练从已有权重出发，用示范、偏好或任务结果调整模型行为。SFT、RLHF、DPO 与 RLVR 主要讨论训练信号和优化方式；LoRA 与 QLoRA 则讨论参数更新及存储方式。理解它们的关系，首先要把“根据什么学习”和“允许哪些权重变化”分开。
@@ -58,7 +58,7 @@ DPO 直接利用偏好对。经典离线 DPO 比较 chosen 与 rejected 回答�
 | 全参 RLVR | 题目、候选生成和严格验证器 | 结果奖励形成的策略梯度 | 全部策略权重；另有 rollout 和评分成本 |
 | LoRA RLVR | 相同任务与验证器 | 相同奖励路线 | 选中层 A、B；仍需生成、评分与策略概率计算 |
 
-经典离线 SFT 的每个更新步骤可以直接使用示范，不必像在线 RL 那样先生成一组新候选。示范的收集当然有成本。LoRA RLVR 则仍要探索候选、运行验证器、保存训练序列，不能用一个小 adapter 文件替代这些工作。TRL 当前稳定版 v1.16.0 的 GRPOTrainer 仍分别接受 `reward_funcs` 和 `peft_config`，并实际通过 PEFT 包装策略模型，体现这两条轴可以组合。
+经典离线 SFT 的每个更新步骤可以直接使用示范，不必像在线 RL 那样先生成一组新候选。示范的收集当然有成本。LoRA RLVR 则仍要探索候选、运行验证器、保存训练序列，不能用一个小 adapter 文件替代这些工作。TRL v1.16.0 的 GRPOTrainer 仍分别接受 `reward_funcs` 和 `peft_config`，并实际通过 PEFT 包装策略模型，体现这两条轴可以组合。
 
 效果选择也要分开。示范足够可靠、主要目标是学会格式与已有行为时，可先测 SFT。成功条件能低成本自动检查、初始模型已有一定成功候选时，RLVR 有可操作的信号。可训练状态超出预算时，再考虑 LoRA；若目标变化需要更大的更新空间，则要比较目标层、rank 和全参更新，而不能预设 adapter 与全参在所有任务上等效。
 
@@ -114,7 +114,7 @@ QLoRA 在此基础上，把冻结底座用低比特形式存储，并通过该�
 
 ### 从奖励到组内优势
 
-同一道题的四个预设候选得到奖励 `[1, 0, 1, 0]`。正确回答应该提高多少概率，需要一个比较基线。GRPO 使用同题的一组结果形成相对信号，可以省去另行训练的价值模型；代价包括每题多个候选的生成开销，以及组内比较本身的方差。
+同一道题的四个预设候选得到奖励 `[1, 0, 1, 0]`。正确回答应该提高多少概率，需要一个比较基线。DeepSeekMath 论文提出的 GRPO 使用同题的一组结果形成相对信号，可以省去另行训练的价值模型；代价包括每题多个候选的生成开销，以及组内比较本身的方差。
 
 一种常见的组优势计算是：
 
@@ -253,4 +253,15 @@ Hugging Face 的RL Environments目录进一步组织taskset与框架标签，帮
 
 反馈规则可信、初始策略可达、任务能够独立评测之后，再按预算选择全参或 LoRA。这样的顺序把奖励设计、优化算法和参数规模各自负责的决定保留下来，也让一次训练失败时有具体对象可查。
 
-主要资料：LoRA: Low-Rank Adaptation of Large Language Models；QLoRA: Efficient Finetuning of Quantized LLMs；Direct Preference Optimization；DeepSeekMath；Tülu 3；TRL v0.29.1 与 v1.16.0 GRPOTrainer 及 PEFT 集成文档；Hugging Face RL Environments；OpenEnv《Hello World》《Training with OpenEnv》。
+## 主要资料
+
+- Edward J. Hu 等：《LoRA: Low-Rank Adaptation of Large Language Models》（arXiv:2106.09685v2），第 4.1 节的低秩权重更新、缩放和初始化。
+- Tim Dettmers 等：《QLoRA: Efficient Finetuning of Quantized LLMs》（arXiv:2305.14314v1），第 3 节的冻结量化底座、NF4、双重量化和分页优化器。
+- Long Ouyang 等：《Training language models to follow instructions with human feedback》（arXiv:2203.02155v1），第 3.1 节的示范、奖励建模与 PPO 三步训练流程。
+- Rafael Rafailov 等：《Direct Preference Optimization: Your Language Model is Secretly a Reward Model》（arXiv:2305.18290v3），第 4 节的偏好对优化目标。
+- John Schulman 等：《Proximal Policy Optimization Algorithms》（arXiv:1707.06347v2），第 3 节的概率比裁剪目标。
+- Zhihong Shao 等：《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》（arXiv:2402.03300v2），第 4.1 节的 GRPO、组内基线与 KL 项。
+- Nathan Lambert 等：《Tülu 3: Pushing Frontiers in Open Language Model Post-Training》（arXiv:2411.15124v4），第 2、4—6 节的训练配方与 RLVR 任务，第 7 节的开发及未见评测集。
+- DeepSeek-AI：《DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning》（arXiv:2501.12948v1），第 2.2 节的 R1-Zero 基础模型强化学习路线。
+- Hugging Face TRL：v0.29.1《GRPO Trainer》与 `grpo_trainer.py`，用于本文样本标准差加 `0.0001` 的优势复算及 `beta` 默认值；v1.16.0 的 `GRPOTrainer`、`GRPOConfig` 实现，用于奖励函数、PEFT 包装、loss 和重要性比配置。两版在此承担不同的解释依据。
+- Hugging Face PEFT《LoRA》参数文档；Hugging Face《Welcome RL Environments to the hub》中的任务目录与框架分工；OpenEnv《Hello World》《Training with OpenEnv》中的环境交互与训练接入。
