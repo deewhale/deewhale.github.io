@@ -1,0 +1,57 @@
+---
+layout: default
+---
+<article class="post">
+  <header class="post-header">
+    <a class="back-link" href="{{ '/' | relative_url }}">← 返回文章列表</a>
+    <h1>{{ page.title }}</h1>
+    {% if page.description %}<p class="post-deck">{{ page.description }}</p>{% endif %}
+    <div class="post-meta">
+      {% assign record_date = page.display_date | default: page.date %}
+      <time datetime="{{ record_date | date: '%Y-%m-%d' }}">记录日期 {{ record_date | date: '%Y 年 %m 月 %d 日' }}</time>
+      <span>·</span><a class="post-byline" rel="author" href="{{ site.author.url }}">{{ site.author.name }}</a>
+      {% if page.tags.size > 0 %}<span>·</span><span>{{ page.tags | join: ' / ' }}</span>{% endif %}
+      <span>·</span><a class="post-method" href="{{ '/editorial-policy/' | relative_url }}">编辑方法</a>
+    </div>
+  </header>
+
+  <div class="prose">{{ content }}</div>
+
+  <footer class="post-footer" data-nosnippet>
+    <p class="post-footer-label">继续阅读</p>
+    {% include post-order.html posts=site.posts %}
+    {% assign previous_post = nil %}
+    {% assign next_post = nil %}
+    {% for post_key in ordered_post_keys %}
+      {% assign post_url = post_key | split: '|' | last %}
+      {% if post_url == page.url %}
+        {% unless forloop.last %}
+          {% assign older_index = forloop.index0 | plus: 1 %}
+          {% assign older_url = ordered_post_keys[older_index] | split: '|' | last %}
+          {% assign previous_post = site.posts | where: 'url', older_url | first %}
+        {% endunless %}
+        {% unless forloop.first %}
+          {% assign newer_index = forloop.index0 | minus: 1 %}
+          {% assign newer_url = ordered_post_keys[newer_index] | split: '|' | last %}
+          {% assign next_post = site.posts | where: 'url', newer_url | first %}
+        {% endunless %}
+        {% break %}
+      {% endif %}
+    {% endfor %}
+    <nav class="post-pagination" aria-label="相邻文章">
+      {% if previous_post %}
+        <a rel="prev" href="{{ previous_post.url | relative_url }}">
+          <span>上一篇</span>
+          <strong>{{ previous_post.title }}</strong>
+        </a>
+      {% endif %}
+      {% if next_post %}
+        <a rel="next" href="{{ next_post.url | relative_url }}">
+          <span>下一篇</span>
+          <strong>{{ next_post.title }}</strong>
+        </a>
+      {% endif %}
+    </nav>
+    <a class="all-posts-link" href="{{ '/' | relative_url }}">查看全部文章 →</a>
+  </footer>
+</article>

@@ -1,0 +1,11 @@
+{%- comment -%}
+Sort by the date readers see, falling back to the original publication date.
+The publication timestamp and URL make ties deterministic without changing metadata.
+{%- endcomment -%}
+{%- capture post_order -%}
+  {%- for item in include.posts -%}
+    {%- assign record_date = item.display_date | default: item.date -%}
+    {{- record_date | date: '%Y-%m-%d' -}}|{{- item.date | date: '%Y%m%d%H%M%S' -}}|{{- item.url -}}{%- unless forloop.last -%}~{%- endunless -%}
+  {%- endfor -%}
+{%- endcapture -%}
+{%- assign ordered_post_keys = post_order | split: '~' | sort | reverse -%}

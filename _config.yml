@@ -1,0 +1,23 @@
+title: Pepper 的小站
+tagline: AI、软件工程与系统架构
+description: Pepper 的中文技术博客，持续记录 AI 编程、软件工程、系统架构与开源项目的机制、边界和实践判断。
+url: https://deewhale.github.io
+baseurl: ""
+lang: zh-CN
+timezone: Asia/Shanghai
+
+author:
+  name: Pepper
+  github: deewhale
+  url: https://deewhale.github.io/about/
+
+permalink: /posts/:title/
+future: false
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+exclude:
+  - README.md
+  - LICENSE
