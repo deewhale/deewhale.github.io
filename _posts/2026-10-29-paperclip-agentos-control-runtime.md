@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Paperclip 与 Agno AgentOS 对比：从 Agent 接入到任务交付"
+title: "Paperclip 与 Agno AgentOS：任务管理和执行编排的实现对比"
 description: "从任务领取、Team 成员委托、Workflow 步骤传参与 Company 交付审查，解释 Paperclip 与 Agno AgentOS 如何组织 Agent 工作，以及两套产品的选择和组合。"
 image: /assets/images/posts/paperclip-agentos-control-runtime-mechanism.png
 image_alt: "Paperclip 从组织配置、adapter 接入走向工作交付；Agno 从 SDK 组件、AgentOS 服务走向 Control Plane 操作界面，另可启用 Company 管理长期任务和审查"
@@ -15,7 +15,7 @@ Paperclip 是一个管理 AI Agent 工作的网页应用。用户通过适配器
 
 Agno 是构建 Agent 的 Python 框架，开发者在代码里配置模型、工具和执行逻辑。Agent 可以直接在 Python 中运行；需要供其他应用调用时，再注册到 AgentOS，由它接收请求并返回执行结果。Agno 也提供 Company，将这些执行组件接入项目、任务和交付审查。两套产品因此都涉及任务管理，但任务由谁分派、怎样交给执行者、运行结束后如何验收，需要分别看它们的实现。
 
-## Paperclip：把岗位、Agent 和任务连起来
+## Paperclip 的组织、Agent 与任务管理
 
 Paperclip 的官方首次使用教程从建立组织开始。启动服务、进入工作台后，先建立组织，再到 Goals 中补充目标。目标说明为什么做，项目归集相关工作，任务（Issue）写明具体要做什么。Agent 则记录承担工作的角色，以及它与其他角色的分工和汇报关系。
 
@@ -29,7 +29,7 @@ Paperclip 通过 adapter（适配器）连接岗位与用户自己的 Agent。�
 
 官方 Watching Agents Work 教程展示了这样的第一轮协作：CEO 读取目标和指令，提出策略，用户审查策略，然后让后续任务进入看板。在这个教程里，人负责确认方向，Agent 负责进一步拆分和分派。能否拆出有用的任务，依然依赖执行者的判断与材料；Paperclip 保存这些决定，并提供继续推进工作的入口。
 
-### 分派、唤醒和领取怎样接起来
+### 任务分派、执行唤醒与领取
 
 组织关系说明一个角色向谁汇报，具体要执行哪项工作则记录在 Issue 上。用户或有相应职责的 Agent 创建任务，写入要求和指派对象；管理 Agent 也可以将工作拆成子任务，分别指派。Agent 被唤醒后，按项目附带的 Paperclip skill 读取触发原因与自己的分派，选择本次要处理的任务。
 
@@ -41,7 +41,7 @@ Paperclip 通过 adapter（适配器）连接岗位与用户自己的 Agent。�
 
 这里有两种互相补充的记录。Issue 保存工作要求、讨论和产出，Agent 的 Live Run 或 Runs 保存某次启动的过程。一项工作被退回后可以再次启动，原来的要求与结果仍留在任务中；排查某次执行出错，则沿关联的 run 查看。Paperclip 保存任务处理权和工作进展，接入的 Agent 负责这次运行中的模型与工具调用。
 
-## Agno：把执行逻辑写成组件，再提供运行接口
+## Agno 的执行组件与服务接口
 
 用 Agno 构造 Agent 时，开发者在 Python 中选择模型、写入指令，并配置它能调用的工具。工具可以是函数，也可以连接搜索、数据库或其他系统。运行过程中，模型选择工具和参数，SDK 实际调用工具，把返回结果加入上下文，再让模型继续，直到得到答案或达到停止条件。
 
@@ -71,11 +71,11 @@ app = agent_os.get_app()
 
 Control Plane 则是操作这套服务的网页入口。用户在网页中添加 OS，填入自己运行的 AgentOS 地址；连接后，界面列出服务注册的 Agent、Team 和 Workflow，用户可以测试组件、查看会话和运行数据。能查看哪些会话、知识和追踪内容，取决于服务端启用了什么。执行进程仍在用户部署 AgentOS 的地方运行，能够访问的资源也由该部署决定。
 
-## Agno 怎样编排成员：模型委托与程序控制流
+## Agno 的成员协作与工作流编排
 
 Agno 的 Agent 已经有自己的模型、指令和工具循环。把多个 Agent 放在一起后，还要决定谁取得当前工作、给它什么输入，以及拿到结果以后调用谁。Team 和 Workflow 将这些决定放在不同位置。
 
-### Team：leader 通过工具把工作委托给成员
+### Team：Leader 的成员委托
 
 官方 Coordinate Mode 示例创建了 Researcher 和 Writer 两个 Agent。Researcher 的职责是整理事实，Writer 的职责是将材料组织成文章。Team 的指令要求信息类请求先交给 Researcher，再让 Writer 整理，最后汇总。这里的顺序写在给 leader 的指令中，由 leader 的模型在运行时据此选择成员和生成委托内容。示例中的关键配置是：
 
@@ -110,7 +110,7 @@ SDK 还会将成员运行关联到父 Team run，并在工具记录中保存子�
 
 成员上下文还需要单独配置。默认 `determine_input_for_members=True`，成员取得的是 leader 编写的 `task`。`add_team_history_to_members` 与 `share_member_interactions` 默认关闭，前者控制是否附加 Team 历史，后者控制是否附加本次运行中已有的成员交互。因此，Writer 需要 Researcher 的结果时，leader 应将结果写入新委托，或显式开启相应共享；只把两位成员放进 `members`，并没有完成材料交接。
 
-### Workflow：由步骤定义决定调用顺序和数据交接
+### Workflow：步骤顺序与数据传递
 
 官方 Workflow Using Steps 示例同样做文章处理，但定义了 research、writing、editing 三个 Step，分别绑定研究、写作和编辑 Agent，再按这个顺序放入 `Steps`。研究 Agent 配置搜索工具，写作和编辑 Agent 处理前面产生的材料。省去模型定义，编排关系是：
 
@@ -136,13 +136,13 @@ research 是否需要搜索、搜索什么，仍由研究 Agent 的模型和工�
 
 这两种对象都能注册到 AgentOS。应用只需调用这个 Team 或 Workflow 的运行接口，内部的成员委托和步骤推进由相应组件完成。接入服务和定义编排是两件相连的工作：AgentOS 负责找到要运行的组件，组件内部的 Team 或 Workflow 决定输入怎样变成输出。更多 SDK 对象见[《Agno SDK：Agent、Team 与 Workflow 的执行机制》](/posts/agno-sdk-execution/)。
 
-## Company：保存工作要求，把执行结果交给审查
+## Company 的长期任务与交付审查
 
 一次接口调用结束后，工作可能还没被接受。它属于哪个项目、当初要求是什么、结果为什么被退回，都需要保存到下一次执行。Agno 的 Company 在运行服务之上提供了这些工作记录。
 
 Company 需要显式启用。它把工作分成 Product、Project 和 Task 三层。官方 `06_execute_tasks.py` 示例创建名为 SDK 的 Product，建立其中的一轮 Release 发布项目，再创建“起草发布说明”（Draft release notes）的 Task，要求整理经过审查的变更。Task 保存工作要求和证据引用；程序另外注册 ID 为 `draft` 的 Workflow，负责取得任务输入并返回待审文本。
 
-### 从 Task 到已注册组件
+### 任务到执行组件的映射
 
 示例将 Task 转为 `ready` 时，同时写入 `executor_type="workflow"`、`executor_id="draft"`。这一步明确了工作范围和执行组件。随后，应用为这项 Task 发起 `attempt=1` 的运行请求。Company 按执行类型和 ID 从 AgentOS 的注册表查找组件，将工作交给已经定义好的 Workflow；组件的选择来自 Task 上的绑定。
 
@@ -150,7 +150,7 @@ Company 需要显式启用。它把工作分成 Product、Project 和 Task 三�
 
 运行请求复用 AgentOS 对应组件的运行接口，并设置后台执行、非流式返回。持久队列保存待执行工作，worker 根据已注册组件标识找到 Workflow 或 Team，再调用它的执行方法。因此，执行组件需要配置数据库，AgentOS 需要启用持久队列与 worker；只建立 Task 记录还没有接通执行。官方示例分别配置 Company 记录与队列存储，其中队列使用 PostgreSQL。
 
-### Task、尝试与成员 run 分别保存什么
+### Task、执行尝试与成员 Run 的记录
 
 同一 Task 下，`attempt` 标识一次执行尝试，Task ID 与 attempt 共同确定该次运行的标识。官方示例连续两次提交 `attempt=1`，检查返回的是同一个 run ID。这使调用方在响应丢失后可以重试提交，取得已有执行，而不是每次请求都新建一次尝试。
 
@@ -162,7 +162,7 @@ Company 需要显式启用。它把工作分成 Product、Project 和 Task 三�
 
 *图：上排是 Paperclip 的岗位与工作，通过 adapter 连接 Agent，并在工作台跟踪交付；下排是 Agno SDK 定义的组件，经 AgentOS 提供 API，再由 Control Plane 连接操作。Company 可以在运行服务之上启用，保存长期任务和审查记录；普通组件运行可以直接进入 AgentOS。*
 
-## 从成员协作回到长期任务
+## 成员协作与长期任务的衔接
 
 Paperclip 的角色交接经过 Issue：上一位留下结果、分派后续工作，接收者在唤醒后领取任务、读取材料。两位角色之间传递的是工作记录与处理责任，各自内部怎样调用模型和工具，由接入的 Agent 决定。
 
@@ -182,11 +182,11 @@ Agno Team 的成员交接经过委托工具及其返回值，Workflow 的交接�
 
 选择时首先要问：当前最缺的是统一组织已有执行者，还是开发一个可由应用调用的组件？如果还需要长期工作管理，再判断 Paperclip 的任务流程或 Agno Company 是否已覆盖要求。
 
-## 运行结束、动作获批和费用入账，各自意味着什么
+## 运行结果、操作审批与预算控制
 
 把工作接上执行程序后，界面状态仍需结合实际动作理解。接单、执行和交付不在同一时刻发生；批准方向与批准工具操作，也不在同一个位置生效。
 
-### 远端接单之后，怎样取得最终结果
+### 远程任务的状态查询与结果获取
 
 通用 HTTP adapter 的接入参数包括远端 `url`、请求方法、headers、超时与可选的 `payloadTemplate`。默认以 POST 发送 JSON：先放入模板字段，再写入本次的 `agentId`、`runId`、`context` 和 `connectionInstructions`；有运行时工具定义时，还会附上 `paperclipRuntimeTools`。远端据这些材料找到接入身份及本次工作，也可以用 run ID 关联自己的执行记录。
 
@@ -196,13 +196,13 @@ Agno Team 的成员交接经过委托工具及其返回值，Workflow 的交接�
 
 AgentOS 的持久队列保存待执行工作及运行关联，使请求进程退出后仍有继续处理的依据。但队列重试可能重新执行一次 run：如果上一次已经对外部系统写入成功，重新执行就可能再次写入。要避免重复，仍需为操作提供标识、实现幂等处理，或先查询已有结果。
 
-### 审查工作方向、工具动作与交付物
+### 工作方向、工具动作与交付物的审查
 
 Paperclip 首次使用教程让人审查 CEO 策略，约束的是后续工作的方向。任务的 execution policy 则可以要求交付经过 review 或 approval 后，才允许完成状态变更，约束的是任务怎样结项。工具若已在外部系统完成写入，后来退回交付物，也不会撤销那次写入。
 
 Agno 另有工具调用前的确认与审批机制：在受保护的工具执行之前暂停，等待相应处理，再继续运行。Company Task 的 `in_review` 则留在产出返回之后，用于判断整项交付是否合格。一次工作可以先获准执行某个动作，完成后再接受交付审查。判断审批功能是否满足需要，要明确希望人在什么动作之前或之后作决定。
 
-### 预算怎样影响继续开工
+### 预算限制与后续执行
 
 Paperclip 在分派一次运行、启动付费工作之前预留预算。对于该运行适用的预算策略，它把已记录费用、尚未释放的预留和本次预留一起与额度比较；余量不足，就拒绝这次开工。这里控制的是新的付费工作能否开始，预留检查本身不会终止已经发出的模型调用，也不能限制供应商最终账单。
 
@@ -210,7 +210,7 @@ Paperclip 在分派一次运行、启动付费工作之前预留预算。对于�
 
 Agno 的 usage、metrics 用于观察消耗，并发配置用于限制同时运行的工作数量。这些配置各有用途，与按组织角色分派月度额度属于不同操作。费用额度若是采用条件，就要检查目标部署实际提供的预算流程，不能仅凭运行监控推断它已经具备相同的额度控制。
 
-## 选择与组合：确定任务分派与验收由谁管理
+## 平台选择与组合方式
 
 如果用户已经有自己的 Agent，困难主要是任务散落、分工不清、交付难追踪，Paperclip 的起步方式更直接。把执行者接进来，配置岗位和环境，再集中分派任务。采用成本主要在 adapter、账号、工作区与回报方式的配置，以及谁分派、谁审查、阻塞时怎样继续的流程安排。
 

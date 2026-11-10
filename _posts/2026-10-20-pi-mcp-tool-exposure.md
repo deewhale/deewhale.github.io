@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "Pi 1.0 的工具调用设计：原生 MCP 接入与 Code Mode 编排"
+title: "Pi 的 MCP 与 Code Mode：工具接入和程序化调用"
 description: "解析 Pi 1.0 原生 MCP 与 Code Mode 的工具体系：连接与发现、direct/deferred 呈现、脚本控制流，并以官方 Linear 和 Jev 演示说明中间结果处理及恢复。"
 image: /assets/images/posts/pi-mcp-tool-exposure-mechanism.png
 image_alt: "官方 Linear 与 Jev 演示中，模型生成脚本，Linear 提供 issue 及评论，Jev 分类，脚本保存并筛选结果后交回外层模型"
@@ -17,7 +17,7 @@ Pi 1.0 将原生 MCP 和 Code Mode 一起纳入稳定版，围绕这两项工作
 
 下面先解释连接、发现和执行的整体组织，再用官方 Linear 与 Jev 会话重放分析一次组合任务。具体机制参照 `v1.4.0`，历史演示与当前接口的差异在相应位置说明。
 
-## 工具接入与工具组合分别解决什么
+## MCP 接入与 Code Mode 的分工
 
 Pi 此前可以通过扩展接入 MCP。官方重新考虑原生支持时，关注的是更普遍的组合问题：服务提供了工具，并不意味着多个工具已经可以顺畅协作。许多 MCP 服务将接口设计成“调用一次，返回一段给模型阅读的文本”，后续取字段、循环查询和汇总又要回到对话里完成。
 
@@ -31,7 +31,7 @@ Pi 此前可以通过扩展接入 MCP。官方重新考虑原生支持时，关�
 
 
 
-## 工具怎样从 MCP 服务进入会话
+## MCP 服务连接与工具加载
 
 接入时，需要先理解工具怎样进入 Pi。固定版本支持 stdio 与 Streamable HTTP 两类 MCP 连接。前者启动一个服务进程并交换协议消息，后者连接 HTTP 服务；需要认证的服务还要完成对应登录。不能从演示中的 `mcp__linear__list_issues` 反推出某个当前可用的服务地址、凭据或接口定义。
 
@@ -53,7 +53,7 @@ Code Mode 提供异步的 `searchTools`、`describeTool` 和 `describeNamespace`
 
 
 
-## direct、deferred 与 Code Mode 如何分配控制
+## Direct、Deferred 与 Code Mode 的调用方式
 
 下面的官方任务先取得一组 Linear issue，再用每条 issue 的标识查询评论，将线程文字交给 Jev 按同一标准分类，最后筛选结果。这里有两项不同依赖：取评论需要 issue 标识，分类需要实际评论。三种工具方式都能完成这些调用，差别是定义何时出现、谁保存中间集合并推进这些依赖。
 
@@ -78,7 +78,7 @@ MCP 的 `codemode` exposure 与 `deferred` 还有重叠的间接可达性，差�
 
 
 
-## 官方 Linear 与 Jev 任务怎样组合查询和判断
+## Linear 与 Jev 的官方工具组合示例
 Earendil Engineering 在 2026 年 9 月 29 日《“You Said No MCP!”》中公开了浓缩会话重放：从团队的 Linear issue 里筛选情绪明显不满的讨论，再用 Jev 分类器组织判断。这是一次公开的工具组合演示。
 
 ![官方 Linear 与 Jev 演示中，模型生成脚本，Linear 提供 issue 及评论，Jev 分类，脚本保存并筛选结果后交回外层模型](/assets/images/posts/pi-mcp-tool-exposure-mechanism.png)
@@ -119,7 +119,7 @@ Jev 的判断目标被明确写成一个 choice 问题：根据发言者的情�
 
 
 
-## 从历史演示迁移到当前返回接口
+## MCP 返回结构与演示代码适配
 
 9 月 29 日的公开脚本直接从工具返回中解构 `issues` 和 `comments`。固定 v1.4.0 的 MCP 适配器则向脚本提供 `CallToolResult` 外包装。真实服务的结构化业务数据位于其中的 `structuredContent`，另有 `content` 和 `isError` 等字段。因此历史程序适合作为设计对象，不能原样作为当前版本的可运行教程。
 
@@ -139,7 +139,7 @@ Code Mode 的脚本并发还要受宿主 worker 资源控制。1.4 在 worker �
 
 
 
-## 数据复用、执行恢复与权限分别落在哪里
+## 数据持久化、任务恢复与执行权限
 
 官方演示将分类行写入 `store("frustration", results)`，使后续追问能够复用结果。这里保存的是数据。普通 Code Mode 每次调用会启动新的 VM，上一段程序的局部变量不会自然保留；成功脚本的 store 写入作为 `codemode-store` 条目进入会话，并沿当前分支恢复可见值。
 
@@ -153,7 +153,7 @@ QuickJS 对程序直接使用宿主文件、网络和进程接口作限制。它
 
 
 
-## 按数据依赖选择调用方式
+## 按工具规模与数据依赖选择调用方式
 
 接口很少、结果很短、下一步需要模型重新理解新材料时，直接调用容易观察和调试。接口目录很大，但仍希望由模型逐步决策时，deferred 可以按需提供定义。循环、并发、连接、筛选与聚合已有清晰规则时，Code Mode 才能把这些规则落实成程序。
 
