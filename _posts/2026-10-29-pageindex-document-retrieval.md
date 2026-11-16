@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "PageIndex 检索原理：目录导航、原文读取与知识库接入"
-description: "PageIndex 不靠向量相似度找片段：它先把 PDF 整理成带页码的目录树，让模型看着目录决定读哪几页，再读原页回答。本文读源码讲这棵树怎么建、模型怎么用它，并讨论把它接进多文档知识库还缺什么，以及和关键词、向量检索怎样比较。"
+description: "沿着 Flash 建树、模型工具导航和原页取证解释 PageIndex 的检索原理，区分本地 SDK、Cloud File System 与 Page Search，并给出跨文档路由、版本权限和混合检索的采用条件。"
 image: "/assets/images/posts/pageindex-document-retrieval-mechanism.png"
 image_alt: "PageIndex 本地 PDF 的结构提取、模型工具导航与原页证据链，以及存储对象和知识库版本权限职责"
 date: 2026-10-29 10:08:47 +0800

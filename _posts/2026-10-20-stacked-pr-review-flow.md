@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Stacked PR 实践：依赖管理、代码审查与合并"
-description: "把一个大改动拆成几个有先后依赖的 PR，每个只审自己新增的部分，这就是 Stacked PR。本文按 GitHub 官方的 gh-stack 工具，讲怎样建立这条 PR 链，底层改了之后上层怎样 rebase，以及审批、测试和合并要注意什么。"
+description: "基于 GitHub gh-stack 的官方分支模型，解释比较基线、级联重排、审批与测试，以及 Coding Agent 怎样提交可审查的增量。"
 image: /assets/images/posts/stacked-pr-review-flow-mechanism.png
 image_alt: "官方认证层、API 层与前端层依次以相邻父层为比较基线，下层变更后级联重排和复查"
 date: 2026-10-20 09:42:16 +0800
@@ -11,9 +11,9 @@ tags: [GitHub, Git, Stacked PR, Code Review]
 last_modified_at: 2026-10-29 19:46:36 +0800
 ---
 
-一个大改动如果放在一个 PR 里，审查的人很难看完。Stacked PR 的做法是把它拆成一串有先后依赖的 PR：最底下一个基于主干，上面每个都基于它的下一层，每个 PR 只显示自己新增的部分。审查可以一层一层来，合并时仍按依赖顺序。
+Stacked PR 是把有依赖的代码变更组织成一条审查链的方法：最底层基于主干，上层基于紧邻的下层，每个 PR 展示自己增加的行为。这样，工程师可以逐层讨论设计，同时保留最终组合的依赖顺序。
 
-它适合前后依赖清楚、每一层又能单独审查的改动。这里有三样东西要分清：Git 分支保存代码历史，PR 的 base 决定页面上显示哪些差异，GitHub 的 stack 记录这些 PR 之间的依赖。`gh-stack` 是 GitHub CLI 的官方扩展，帮你维护三者的对应关系。
+它适合一个较大变更具有清楚的前后关系、又能拆出独立审查任务的情况。Git 分支保存代码历史，PR 的 base 决定展示差异，GitHub 的 stack 保存远端依赖关系；`gh-stack` 则帮助维护这些对象之间的对应。理解三者的分工，比增加 PR 数量更重要。
 
 ## 按代码依赖拆分 PR
 

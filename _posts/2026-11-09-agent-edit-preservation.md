@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agent 文档编辑：修改结果与内容保留的验证"
-description: "让 Agent 改文档，除了确认该改的地方改对了，还要确认其他内容没被顺手改掉。本文分两种情况讲怎样验收：只改一处的局部修改，以及拆分、重排这类全文变动；并介绍微软 DELEGATE-52 研究怎样测量反复编辑后的内容丢失。"
+description: "Agent 修改文档后，怎样确认指定内容已改、其余内容未变？分别讨论局部补丁与账本拆分重排的验收方法，并介绍 DELEGATE-52 对多轮编辑内容丢失的测量。"
 image: "/assets/images/posts/agent-edit-preservation-mechanism.png"
 image_alt: "原始文档分别进入目标改动检查和非目标内容检查，底部说明研究往返测量的关系图"
 date: 2026-11-09 15:13:41 +0800

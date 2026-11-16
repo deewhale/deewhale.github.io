@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Paperclip 与 Agno AgentOS：任务管理和执行编排的实现对比"
-description: "Paperclip 是给已有的 Agent 派活、跟进度的任务看板；Agno AgentOS 是把自己写的 Agent 跑成 API 服务的框架，也带任务管理。本文对比两者：任务怎样分派和领取，多个 Agent 怎样协作，结果怎样验收，以及什么情况下选哪个、能不能一起用。"
+description: "从任务领取、Team 成员委托、Workflow 步骤传参与 Company 交付审查，解释 Paperclip 与 Agno AgentOS 如何组织 Agent 工作，以及两套产品的选择和组合。"
 image: /assets/images/posts/paperclip-agentos-control-runtime-mechanism.png
 image_alt: "Paperclip 从组织配置、adapter 接入走向工作交付；Agno 从 SDK 组件、AgentOS 服务走向 Control Plane 操作界面，另可启用 Company 管理长期任务和审查"
 date: 2026-10-29 10:08:20 +0800

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agent 配置的供应链安全：Skills、Hooks 与 MCP"
-description: "给 Agent 装 Skill、配 Hook、接 MCP 服务，装进来的除了给模型看的说明，还有会被执行的脚本和服务。本文以 Agent Skills 规范、Claude Code Hooks 和 Pi 的 MCP 配置为例，讲这些配置各自在什么时候生效，更新时该审查什么。"
+description: "沿 Agent Skills、Claude Code Hooks 与 Pi MCP 的实际加载路径，解释配置供应链的代码来源、依赖版本、触发条件和执行权限，以及更新审查如何落地。"
 image: /assets/images/posts/agent-configuration-supply-chain-mechanism.png
 image_alt: "配置来源经过加载解释抵达运行时执行，底部列出版本、行为指引、授权和隔离四类检查"
 date: 2026-10-20 09:42:17 +0800

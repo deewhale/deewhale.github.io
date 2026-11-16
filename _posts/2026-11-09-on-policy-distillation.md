@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "On-policy 蒸馏原理与训练过程"
-description: "蒸馏通常让学生模型模仿教师写好的回答，可学生自己生成时一旦走偏，后面的情况它从没学过。On-policy 蒸馏改为让学生先自己写，教师在学生写出的内容上逐个 token 给反馈。本文用一道冰块题和几步推导讲清这个训练过程。"
+description: "从教师示范与学生独立生成的错位出发，解释 on-policy 蒸馏的一轮训练、冰块示例中的教师反馈，以及 reverse KL、策略梯度和 γ=0 的作用。"
 date: 2026-11-09 15:13:41 +0800
 display_date: 2026-11-08
 tags: [AI, Agent, 模型机制]

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agent 指令文件：内容选择与效果评估"
-description: "AGENTS.md、CLAUDE.md 里该写什么、不该写什么？两项研究给了实测：文件里提到的项目命令确实会被用上，目录概览没让 Agent 更快找到要改的文件，自动生成的文件还让推理费用多出两成。本文据此讨论一条内容该留还是该删。"
+description: "AGENTS.md 应保留哪些内容？结合两项编码 Agent 研究，分析指令文件怎样改变 Agent 的搜索、测试和修改，并比较它带来的修复收益、回归和推理费用。"
 image: "/assets/images/posts/agent-instruction-file-design-mechanism.png"
 image_alt: "指令文件研究从对齐实验条件、观察轨迹到检查补丁和成本的分析步骤"
 date: 2026-11-09 15:13:41 +0800

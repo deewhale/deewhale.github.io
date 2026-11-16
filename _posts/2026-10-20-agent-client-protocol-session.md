@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agent Client Protocol：编辑器与 Agent 的通信机制"
-description: "ACP 是编辑器和 Coding Agent 之间的通信协议。本文按 v1 规范，用一次“修改配置文件”的会话，讲初始化、工具进度、文件读写、权限确认和取消各自发什么消息，以及接入时要验收哪些行为。"
+description: "从客户端与 Coding Agent 的分工解释 ACP v1：连接协商、会话关联、工具进度、权限与取消如何协同，以及接入时怎样同时验证消息和实际文件结果。"
 image: /assets/images/posts/agent-client-protocol-session-mechanism.png
 image_alt: "编辑器与 Agent 进程双向交换 ACP 请求和会话更新，Agent 再通过工具连接访问服务器"
 date: 2026-10-20 09:42:17 +0800
@@ -11,11 +11,11 @@ tags: [ACP, Coding Agent, Protocol, Editor]
 last_modified_at: 2026-10-29 19:44:15 +0800
 ---
 
-Agent Client Protocol（ACP）是编辑器和 Coding Agent 之间的通信协议。有了它，一个 Agent 不用为每种编辑器各写一套对接代码，编辑器也不用为每个 Agent 单独适配：双方按同一套消息建立会话、汇报工具进度、请求权限和取消操作。
+Agent Client Protocol（ACP）是编辑器等客户端与 Coding Agent 之间的通信协议。客户端提供交互界面和项目入口，Agent 提供模型与工具驱动的执行过程；ACP 让双方使用共同的消息表达会话、工具进度、权限选择和取消，而不必为每个编辑器与每个 Agent 单独设计一套交互。
 
-接上 ACP 之后，编辑器能做几件靠“启动命令、读输出”做不到的事：把用户还没保存的内容交给 Agent，实时显示 Agent 正在改哪个文件、改了什么，在它动手之前弹出确认。消息也不是单向的，Agent 干活途中可以反过来向编辑器要文件。
+接入之后，编辑器可以把用户尚未保存的文本交给 Agent，展示它准备修改的文件，并在执行前收集权限选择。Agent 在处理用户输入的同时，也能向编辑器请求文件等能力；因此它读到的是编辑器里的当前内容，包括尚未保存的修改。
 
-下面按 v1 规范，从启动 Agent 进程开始，把这些消息挨个看一遍，最后整理成一张接入时的验收表。
+下面按 v1 规范，从启动 Agent 进程开始逐个看这些消息，最后整理成一张接入验收表。
 
 ## 客户端与 Agent 的职责
 

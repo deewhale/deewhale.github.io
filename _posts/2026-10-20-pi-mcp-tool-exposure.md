@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Pi 的 MCP 与 Code Mode：工具接入和程序化调用"
-description: "Pi 1.0 原生支持 MCP，并加了 Code Mode：模型可以写一段 JavaScript，在脚本里循环、并发地调用工具，只把最后的结果交回对话。本文讲工具怎样接入、三种调用方式有什么区别，并拆解官方的一个示例：从 Linear 里筛出情绪不满的 issue。"
+description: "解析 Pi 1.0 原生 MCP 与 Code Mode 的工具体系：连接与发现、direct/deferred 呈现、脚本控制流，并以官方 Linear 和 Jev 演示说明中间结果处理及恢复。"
 image: /assets/images/posts/pi-mcp-tool-exposure-mechanism.png
 image_alt: "官方 Linear 与 Jev 演示中，模型生成脚本，Linear 提供 issue 及评论，Jev 分类，脚本保存并筛选结果后交回外层模型"
 date: 2026-10-20 17:03:07 +0800

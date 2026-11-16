@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "DeepInfer 推理优化原理及与 vLLM、SGLang 的比较"
-description: "DeepInfer 是 DeepSeek 开源的推理引擎，目前面向 DeepSeek-V4.1-Flash。本文读源码讲它的四项优化：专家并行与负载均衡，按收益决定验证多少草稿的 DSpark，让 CPU 和 GPU 同时干活的异步调度，减少 prefill 计算的有限重放；并逐项对比 vLLM 和 SGLang 的做法。"
+description: "从推理引擎的请求、计算和缓存职责进入，深入分析 DeepInfer 的专家布局、DSpark 预算、异步状态与有限重放，并与 vLLM、SGLang 的对应实现比较。"
 image: "/assets/images/posts/deepinfer-inference-design-mechanism.png"
 image_alt: "DeepInfer DSpark 稳态解码的三次决策：CPU 使用历史置信信息确定总预算，GPU 用较新信息分配验证长度，目标模型与采样器决定真实接受，并通过修正序列及 KV 长度补齐异步状态"
 date: 2026-10-22 10:47:23 +0800
@@ -14,7 +14,7 @@ DeepInfer 是 DeepSeek 开源的大模型推理引擎。应用把输入文本和
 
 理解推理引擎，可以先看它同时处理的三种工作。第一是把权重放到能够容纳它们的设备上，并让多个设备分担模型计算。第二是在不断进入和结束的请求之间安排每一轮计算，让设备保持有效批量。第三是保存上下文和采样状态，让下一轮继续得到正确结果。模型权重给出计算规则，引擎决定这些规则怎样在真实设备和请求负载中运行。
 
-下面先顺着一条请求看引擎的执行流程，再逐项讲四个优化：专家并行（Wide EP）怎样让多张卡分担计算，DSpark 怎样决定每轮验证多少草稿 token，异步调度怎样让 CPU 和 GPU 同时干活，有限重放怎样减少长输入的 prefill 计算。每一项都对比 vLLM、SGLang 的对应实现。读的时候可以留意两点：这项优化省掉了什么计算，为了不改变生成结果，又必须多记住什么。
+下面先顺着一条请求看引擎的执行流程，再逐项讲四个优化：专家并行（Wide EP）怎样让多张卡分担计算，DSpark 怎样决定每轮验证多少草稿 token，异步调度怎样让 CPU 调度与 GPU 计算重叠进行，有限重放怎样减少长输入的 prefill 计算。每一项都对比 vLLM、SGLang 的对应实现。读的时候可以留意两点：这项优化省掉了什么计算，为了不改变生成结果，又必须多记住什么。
 
 ## 请求接入与推理调度流程
 

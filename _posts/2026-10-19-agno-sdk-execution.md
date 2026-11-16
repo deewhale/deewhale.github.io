@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agno SDK 原理：Agent 执行、Team 协作与 Workflow 编排"
-description: "Agno 是用 Python 写 Agent 应用的框架。本文讲它的三种组织方式：Agent 由模型决定下一步调什么工具，Team 由一个 leader 模型把任务分给成员，Workflow 由 Python 代码规定步骤顺序；并说明会话存储和 AgentOS 服务各管什么。"
+description: "从 Agno 的整体执行模型出发，结合官方工具、成员协调和函数式 Workflow，解释模型与 Python 的控制分工、数据传递、持久化及 AgentOS 服务化。"
 image: /assets/images/posts/agno-sdk-execution-execution-map.png
 image_alt: "Agent、Team 和 Workflow 三行执行图，分别展示模型选工具、leader 委托成员和程序安排步骤"
 date: 2026-10-19 19:36:15 +0800
