@@ -6,16 +6,28 @@ layout: default
   <p class="intro-copy">关于 AI、软件工程与系统架构。拆解开源项目，追踪技术背后的机制，记录实践中的判断与边界。</p>
   <p class="intro-series"><span>专题阅读：</span><a href="{{ '/topics/pi-mcp/' | relative_url }}">Pi 专题：会话与任务恢复、MCP 工具接入</a></p>
 </section>
-<section class="post-index" aria-labelledby="latest-posts">
-  <div class="section-heading">
-    <h2 id="latest-posts">全部文章<span class="index-count">{{ site.posts | size }}</span></h2>
-    <a href="{{ '/topics/' | relative_url }}">按主题浏览</a>
-  </div>
-  {% if site.posts.size > 0 %}
+{% if site.posts.size > 0 %}
+  {% include post-order.html posts=site.posts %}
+  {% assign latest_url = ordered_post_keys | first | split: '|' | last %}
+  {% assign latest = site.posts | where: 'url', latest_url | first %}
+  {% assign latest_date = latest.display_date | default: latest.date %}
+  <article class="feature">
+    <div class="feature-body">
+      <p class="feature-label">最新文章<time datetime="{{ latest_date | date: '%Y-%m-%d' }}"><span class="sr-only">记录日期 </span>{{ latest_date | date: '%Y.%m.%d' }}</time></p>
+      <h2><a href="{{ latest.url | relative_url }}">{{ latest.title }}</a></h2>
+      {% if latest.description %}<p class="feature-desc">{{ latest.description }}</p>{% endif %}
+      {% if latest.tags.size > 0 %}<ul class="tags" aria-label="标签">{% for tag in latest.tags limit:3 %}<li>{{ tag }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% if latest.image %}<img class="feature-image" src="{{ latest.image | relative_url }}" alt="{{ latest.image_alt | default: '' | escape }}" width="900" height="540">{% endif %}
+  </article>
+  <section class="post-index" aria-labelledby="more-posts">
+    <div class="section-heading">
+      <h2 id="more-posts">更多文章</h2>
+      <a href="{{ '/topics/' | relative_url }}">按主题浏览</a>
+    </div>
     <div class="post-list">
-      {% include post-order.html posts=site.posts %}
       {% assign previous_day = '' %}
-      {% for post_key in ordered_post_keys %}
+      {% for post_key in ordered_post_keys offset:1 %}
         {% assign post_url = post_key | split: '|' | last %}
         {% assign post = site.posts | where: 'url', post_url | first %}
         {% assign record_date = post.display_date | default: post.date %}
@@ -27,9 +39,10 @@ layout: default
             {% if post.description %}<p class="entry-desc">{{ post.description }}</p>{% endif %}
             {% if post.tags.size > 0 %}<ul class="tags" aria-label="标签">{% for tag in post.tags limit:3 %}<li>{{ tag }}</li>{% endfor %}</ul>{% endif %}
           </div>
+          {% if post.image %}<a class="entry-thumb" href="{{ post.url | relative_url }}" tabindex="-1" aria-hidden="true"><img src="{{ post.image | relative_url }}" alt="" loading="lazy" width="352" height="212"></a>{% endif %}
         </article>
         {% assign previous_day = record_day %}
       {% endfor %}
     </div>
-  {% else %}<p class="empty-state">第一篇文章正在路上。</p>{% endif %}
-</section>
+  </section>
+{% else %}<p class="empty-state">第一篇文章正在路上。</p>{% endif %}
