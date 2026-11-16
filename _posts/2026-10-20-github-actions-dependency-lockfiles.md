@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "GitHub Actions 依赖锁文件的使用与升级审查"
-description: "基于 gh-actions-lock 官方锁文件和实现，解释传递 Action、来源校验、可复用工作流的独立边界，以及生成、检查和重新锁定的采用流程。"
+description: "GitHub Actions 里 `uses: actions/checkout@v7` 指向的代码是会变的，因为 tag 可以被移动。官方的 gh-actions-lock 把每个 Action 实际解析到的提交写进锁文件。本文讲锁文件记录了什么，哪些依赖它管不到，以及升级依赖时怎样审查。"
 image: /assets/images/posts/github-actions-dependency-lockfiles-mechanism.png
 image_alt: "受支持 Action 进入 actions.lock；可复用工作流单独用完整提交 SHA 固定引用，并由定义仓库管理内部 Action"
 date: 2026-10-20 09:42:17 +0800
@@ -11,11 +11,11 @@ tags: [GitHub Actions, Supply Chain, CI, Lockfiles]
 last_modified_at: 2026-10-29 19:43:39 +0800
 ---
 
-GitHub Actions 的工作流不仅依赖本仓库的代码，也依赖它调用的 Action。`uses: actions/checkout@v7` 这类声明保留了可读的版本意图，但 tag 或 branch 可以移动。一次工作流执行得到哪份代码，要由引用解析决定。
+GitHub Actions 的工作流除了运行本仓库的代码，还会运行它引用的 Action。`uses: actions/checkout@v7` 这样的写法好读，但 `v7` 是一个 tag，tag 可以被改指到另一个提交。今天和下个月跑同一份工作流，执行的可能不是同一份代码。
 
-GitHub 的工作流依赖锁文件机制把解析结果保存到 `.github/workflows/actions.lock`，官方 `gh-actions-lock` 扩展负责生成和维护它。团队继续在 YAML 中使用可读引用，扩展解析直接及传递 Action，记录实际提交和来源身份；对已纳入的工作流，运行端按锁中的对象执行并校验来源。依赖选择因而成为可以随代码一起审查的变化。
+GitHub 为此提供了工作流依赖锁文件。官方的 `gh-actions-lock` 扩展把每个 Action 实际解析到的提交写进 `.github/workflows/actions.lock`，Action 内部引用的其他 Action 也一并记录。YAML 里照旧写可读的版本号，运行时按锁文件里的提交执行，并校验代码来源。依赖换没换、换成了什么，从此会出现在 diff 里，可以像代码一样审查。
 
-采用时最重要的两件事，是辨认哪些依赖真的受锁覆盖，以及把更新变成明确的审查流程。它们决定锁文件能否提供可复查的执行依据。
+用它要弄清两件事：哪些依赖被锁住了，哪些没有；依赖升级时怎样审查。本文按这个顺序讲。
 
 ## 直接依赖与传递依赖
 
@@ -113,7 +113,7 @@ Action 的代码固定之后，它仍可能安装包、拉取镜像、下载文�
 
 权限与固定版本也有不同作用。同一份代码在只读凭据与发布凭据下，能造成的影响不同。选择执行哪份代码、是否信任它、允许它影响什么资源，需要分别管理。
 
-适合先接入的，是能维护依赖升级 PR、已有明确权限策略、依赖关系可解释的一组工作流。先观察新增 Action 是否会被覆盖检查发现，明确升级是否能追到提交和内部边，可复用工作流是否另有版本管理，再扩大范围。工作流可复现性由多种输入共同决定；依赖锁定先把其中可管理的 Action 选择变得可见和可审查。
+建议先在一小组工作流上试：这些工作流有人维护依赖升级的 PR，权限策略明确，依赖关系说得清。试的时候看三点：新加的 Action 会不会被覆盖检查发现，一次升级能不能追到具体提交和内部依赖，可复用工作流有没有另外固定版本。没问题再扩大范围。锁文件管的只是“执行哪份 Action 代码”，包、镜像、runner 和权限仍要各自管理。
 
 ## 主要参考资料
 

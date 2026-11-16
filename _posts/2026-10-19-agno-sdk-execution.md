@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agno SDK 原理：Agent 执行、Team 协作与 Workflow 编排"
-description: "从 Agno 的整体执行模型出发，结合官方工具、成员协调和函数式 Workflow，解释模型与 Python 的控制分工、数据传递、持久化及 AgentOS 服务化。"
+description: "Agno 是用 Python 写 Agent 应用的框架。本文讲它的三种组织方式：Agent 由模型决定下一步调什么工具，Team 由一个 leader 模型把任务分给成员，Workflow 由 Python 代码规定步骤顺序；并说明会话存储和 AgentOS 服务各管什么。"
 image: /assets/images/posts/agno-sdk-execution-execution-map.png
 image_alt: "Agent、Team 和 Workflow 三行执行图，分别展示模型选工具、leader 委托成员和程序安排步骤"
 date: 2026-10-19 19:36:15 +0800
@@ -13,9 +13,9 @@ tags: [Agno, AI Agent, Python, Workflow]
 
 Agno 是用 Python 构建 Agent 应用的框架。开发者提供模型、指令、工具和存储，SDK 将它们组织成能够接收输入、执行工具并返回结果的程序。应用可以直接调用配置好的 Agent、Team 或 Workflow 对象；需要对外提供运行接口时，再通过 AgentOS 将这些组件注册为 API 服务。
 
-SDK 最重要的三个组织单元是 Agent、Team 和 Workflow。Agent 让模型选择下一步工具；Team 将工作委托给具有独立配置的成员；Workflow 用程序安排步骤、分支和数据传递。三者可以嵌套，区别在于谁持有控制权。
+SDK 里最重要的三个概念是 Agent、Team 和 Workflow。Agent 由模型决定下一步调用哪个工具；Team 由一个 leader 把任务分给各有配置的成员；Workflow 由 Python 代码规定步骤、分支和数据怎么传。三者可以嵌套，区别在于下一步做什么由谁决定。
 
-Agno 官方的工具示例、双成员协调示例和内容规划 Workflow，分别展示了模型选工具、leader 分派成员和 Python 安排步骤的过程。
+下面用 Agno 官方的三个示例分别说明：一个工具调用示例，一个两名成员协作的示例，一个内容规划 Workflow。
 
 ## Agent 的模型调用与工具执行循环
 
@@ -129,7 +129,7 @@ Knowledge 通过摄入、索引与检索链路提供文档材料。应用需要�
 
 工具域集中、下一步需要随观察变化的工作，可以先用单 Agent。需要独立能力和上下文时，引入 Team，并明确委托传递哪些材料。步骤顺序、门槛和数据依赖必须由应用保证时，使用 Workflow；其中需要灵活判断的一步仍可调用 Agent 或 Team。
 
-先画出输入、决策、执行与结果的关系，判断哪些决定允许模型提出，哪些条件必须由程序检查，哪些记录需要跨运行保存。Agno 的价值在于让这几种组织方式能够接在一起，而采用的依据是它们是否承担了应用真正需要的控制。
+选之前可以先把流程画出来，标明哪些步骤可以交给模型临场决定，哪些条件必须由代码检查，哪些记录要跨多次运行保存。Agno 的好处是这三种方式可以嵌套着用，不必只选一种。
 
 ## 主要参考资料
 

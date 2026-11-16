@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Agent 上下文压缩：如何保留核心信息"
-description: "从任务目标、已确认事实、工作进度和未完成事项出发，讨论上下文压缩时如何选择保留内容，通过摘要、工作记录与原文回查减少重要信息的遗漏和失真。"
+description: "长任务做到一半，Agent 的上下文装不下了，旧的对话要压成摘要。哪些信息必须留下，摘要会漏掉什么、写错什么？本文结合两项 2026 年的研究，讨论怎样用摘要、工作记录和原始记录把关键信息保住。"
 image: "/assets/images/posts/agent-context-compaction-mechanism.png"
 image_alt: "原始会话经摘要和工作记录两条路径进入后续 Agent 决策的关系图"
 date: 2026-11-09 15:13:41 +0800

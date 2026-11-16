@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "Paperclip 与 Agno AgentOS：任务管理和执行编排的实现对比"
-description: "从任务领取、Team 成员委托、Workflow 步骤传参与 Company 交付审查，解释 Paperclip 与 Agno AgentOS 如何组织 Agent 工作，以及两套产品的选择和组合。"
+description: "Paperclip 是给已有的 Agent 派活、跟进度的任务看板；Agno AgentOS 是把自己写的 Agent 跑成 API 服务的框架，也带任务管理。本文对比两者：任务怎样分派和领取，多个 Agent 怎样协作，结果怎样验收，以及什么情况下选哪个、能不能一起用。"
 image: /assets/images/posts/paperclip-agentos-control-runtime-mechanism.png
 image_alt: "Paperclip 从组织配置、adapter 接入走向工作交付；Agno 从 SDK 组件、AgentOS 服务走向 Control Plane 操作界面，另可启用 Company 管理长期任务和审查"
 date: 2026-10-29 10:08:20 +0800
@@ -222,7 +222,7 @@ Agno 的 usage、metrics 用于观察消耗，并发配置用于限制同时运�
 
 如果 Company Task 同时独立管理相同要求和验收，两边就可能分别改派、退回或发起执行。这时需要规定哪一边可以修改工作范围，另一边怎样跟随；重试时也要区分，是查询已有运行，还是确实开始新一次尝试。
 
-Paperclip 与 Agno AgentOS 的典型入口不同，长期任务管理又使它们成为部分重叠的选择。判断应落在手头的工作上：从哪里提出要求，由谁推进执行，在哪里接受结果。先确认一套产品能把这条路径走到哪一步，再决定是否值得维护两套系统之间的连接。
+两套产品的出发点不同，在长期任务管理上又有重叠。选的时候回到自己的工作流程：需求在哪里提，谁来推进，结果在哪里验收。先看单用一套能走到哪一步，再决定值不值得同时维护两套并把它们连起来。
 
 ## 主要参考资料
 

@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "LLM 推理的批不变性：贪心解码中的数值差异"
-description: "temperature=0 只固定贪心选择规则。本文从浮点归约、RMSNorm、矩阵乘法和 attention 解释批处理如何改变 logits，并给出 Agent 分叉的分层排查方法。"
+description: "把 temperature 设成 0，同一个问题仍可能得到不同回答。原因之一是服务端把你的请求和别人的请求拼成一批计算，批次不同，浮点运算的顺序就不同，结果有细微差别。本文按 Thinking Machines 的工程报告解释这个机制，以及 Agent 行为不一致时怎样排查。"
 date: 2026-11-09 15:13:41 +0800
 last_modified_at: 2026-11-09T18:00:08+08:00
 display_date: 2026-11-07

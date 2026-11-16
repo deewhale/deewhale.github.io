@@ -2,14 +2,14 @@
 layout: default
 title: Pi 的会话架构、任务恢复与工具调用
 permalink: /topics/pi-mcp/
-description: 从 Pi 的会话与持久任务架构出发，理解原生 MCP 怎样接入工具，Code Mode 怎样组合调用，以及中断后恢复需要保存什么。
+description: 两篇关于 Pi 的文章：一篇讲它怎样保存会话、在进程中断后恢复任务，一篇讲它怎样接入 MCP 工具、用 Code Mode 把多次调用写成脚本。
 ---
 
 <article class="page prose" markdown="1">
 
 # Pi 的会话架构、任务恢复与工具调用
 
-Pi 是围绕模型、上下文和工具执行构建的 Agent 工具包。理解它的设计，可以沿两条线展开：一条看 harness 怎样组织会话与持续工作，另一条看工具怎样接入、组合并把结果交回模型。两篇文章分别解释这两层职责，以及它们在持久执行时如何衔接。
+Pi 是一个 Coding Agent 系统，可以在终端里用，也可以通过 SDK 嵌进应用。这个专题有两篇文章：一篇讲它的 harness 怎样保存会话、在进程中断后恢复任务；一篇讲它怎样接入 MCP 工具，以及怎样用 Code Mode 把多次工具调用写成一段脚本。
 
 ## 会话管理与持久任务恢复
 
