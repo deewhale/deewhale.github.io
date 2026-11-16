@@ -170,7 +170,7 @@ Agno Team 的成员交接经过委托工具及其返回值，Workflow 的交接�
 
 两者都可以接入已有的 Agent。Paperclip 使用适配器连接；Agno 除了原生 Agent，也支持通过已适配的外部 Agent 参与 Team 和 Workflow。接入时可以保留已有 Agent 内部的模型与工具调用逻辑，不必全部改写成原生 Agno Agent。
 
-在 Company 中使用这些已适配的外部 Agent，可以先将其放进 Workflow 的步骤，将 Workflow 注册到 AgentOS，再把 Task 绑定到这个 Workflow。Task 运行时，队列 worker 调用 Workflow，由步骤调用外部执行者；运行记录和交付审查仍归 Company Task 关联。这条路径要求 Workflow 配有执行数据库，并启用持久队列。Company 的任务执行要求本地注册、可由队列调用的组件，不能把指向另一套服务的 RemoteAgent、RemoteTeam 或 RemoteWorkflow 直接当成同样的执行入口。
+在 Company 中使用这些已适配的外部 Agent，可以先将其放进 Workflow 的步骤，将 Workflow 注册到 AgentOS，再把 Task 绑定到这个 Workflow。Task 运行时，队列 worker 调用 Workflow，由步骤调用外部执行者；运行记录和交付审查仍归 Company Task 关联。这条路径要求 Workflow 配有执行数据库，并启用持久队列。Company 的任务执行要求本地注册、可由队列调用的组件；指向另一套服务的 RemoteAgent、RemoteTeam 或 RemoteWorkflow 不属于这类执行入口。
 
 | 要完成的事 | Paperclip 的典型做法 | Agno / AgentOS 的典型做法 |
 |---|---|---|

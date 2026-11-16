@@ -25,11 +25,11 @@ Cloudflare 的 security-audit-skill 是一套交给 Coding Agent 使用的审计
 
 这里的“信任边界”有具体含义：低权限主体提交的数据，进入了能够读取其他资源、调用更高权限操作或改变其他主体状态的代码。HTTP 参数、归档文件、插件、CI 输入、模型上下文和本地 IPC 都可能是入口。是否构成越权，要继续追踪资源归属和实际检查。
 
-覆盖台账把入口、信任边界、子系统与攻击类别分别保存为可追踪的源码引用。官方文档用路由 `src/router.ts#POST /users/:id`、授权函数 `src/authz.ts#requireOwner`、包 `packages/api` 和 Access control 类别说明记录形状。这里是台账格式示例，实际运行要从目标仓库找出对应对象。
+覆盖台账把入口、信任边界、子系统与攻击类别分别保存为可追踪的源码引用。官方文档用路由 `src/router.ts#POST /users/:id`、授权函数 `src/authz.ts#requireOwner`、包 `packages/api` 和 Access control 类别说明记录形状。
 
 这四项确定“检查哪个入口，沿哪项授权边界，按哪类攻击解释查什么”。`starting_paths` 给搜寻者起点，`reviewed_paths` 记录真正读过的代码，`local_checks` 留下检查依据，`result_fingerprints` 连到候选；缺失材料进入 `unresolved`。同一路由若经过不同边界，或要查另一种攻击类别，就有不同单元。一个文件读过一次，不能关闭所有相关单元。
 
-主流程将规范引用按UTF-8百分号编码后拼成 `coverage_id`；标签、审查轮次、行号与结论不进入身份。显示名称改变不会让一个未查问题消失。单元先为 `planned`，分派后写入检查；发现候选时与候选记录关联，阻塞时则留下原因。后续批评者重开单元，会归档上一轮依据，分配新的检查，而不是覆盖过去记录。
+主流程将规范引用按 UTF-8 百分号编码后拼成 `coverage_id`；标签、审查轮次、行号与结论不进入身份。显示名称改变不会让一个未查问题消失。单元先为 `planned`，分派后写入检查；发现候选时与候选记录关联，阻塞时则留下原因。后续批评者重开单元，会归档上一轮依据，分配新的检查，而不是覆盖过去记录。
 
 例如，官方侦察要求分别区分“源码能确认的控制”和“依赖未观察到的部署条件的控制”。身份检查写在源码里，可以查调用路径；某路由是否对外开放、服务实际使用什么云权限，则可能需要系统所有者提供材料。覆盖台账据此保留待查和阻塞项，而不把材料缺口算成已完成。
 
@@ -43,7 +43,7 @@ Cloudflare 的 security-audit-skill 是一套交给 Coding Agent 使用的审计
 
 验证者可以读取发现者的证据，但不能继承其结论。源码中的上游检查足以推翻候选时，应结束这条判断；缺失事实仍具有决定性时，应保留缺口；能在规定环境下取得最小观察时，才把观察与源码解释合起来评价。
 
-这一步可以用官方侦察要求中的授权关系理解。设低权限主体 P 请求资源 R，调用路径经过入口 E、授权检查 C，再到读取 S；这只是源码权限分析的抽象模型。搜寻者若只读到 E→S，会提出缺少授权的候选。验证者接着查 C 是否在所有能抵达 S 的路径上执行，C比较的究竟是P与R的归属，还是只有登录状态。前一种检查能切断所声称的越权路径；只有登录检查则仍需追踪资源范围；C是否启用取决于未知部署配置时，记录具体阻塞。
+这一步可以用官方侦察要求中的授权关系理解。设低权限主体 P 请求资源 R，调用路径经过入口 E、授权检查 C，再到读取 S。搜寻者若只读到 E→S，会提出缺少授权的候选。验证者接着查 C 是否在所有能抵达 S 的路径上执行，C 比较的究竟是 P 与 R 的归属，还是只有登录状态。前一种检查能切断所声称的越权路径；只有登录检查则仍需追踪资源范围；C 是否启用取决于未知部署配置时，记录具体阻塞。
 
 反证要寻找足以改变路径可达性的事实。只有检查到当前源码或取得有界观察，结论才前进。
 
@@ -65,7 +65,7 @@ Cloudflare 的 security-audit-skill 是一套交给 Coding Agent 使用的审计
 
 未决记录采用 claimed root cause、blockers 和 validation plan，不携带已确认记录的严重等级。这样，缺少部署身份材料的疑点不会仅凭措辞进入高危修复队列。验证计划应明确需要系统所有者核对的事实，接手者才能知道怎样结束这项工作。
 
-已反证记录也保留原先声称的根因、路径与 reason。它记录的是某条攻击解释为何不成立，不能被扩张为整个产品安全。
+已反证记录也保留原先声称的根因、路径与 reason。它记录的是某条攻击解释为何不成立，范围只到这一条路径。
 
 三种结论用 `fingerprint` 关联同一候选所指的源码根因。它与按固定维度编码的 `coverage_id` 不同：报告 Schema 只约束其非空、字符形式与跨状态稳定的要求，没有从源码自动算出语义相同根因的算法。主 Agent 合并候选时依据根因保持标识，验证者若认为确实是另一个根因，才提出更换；最终报告每个标识只留一条记录。
 
@@ -100,5 +100,5 @@ Cloudflare 的 security-audit-skill 是一套交给 Coding Agent 使用的审计
 1. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：README。
 2. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`skills/security-audit/` 下的 SKILL。
 3. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`skills/security-audit/` 下的 RECONNAISSANCE。
-4. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`VALIDATION-AND-REPORTING.md`，第3—6阶段：候选验证、结构化输出、独立记录复核与报告。
+4. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`VALIDATION-AND-REPORTING.md`，第 3—6 阶段：候选验证、结构化输出、独立记录复核与报告。
 5. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`report-schema.json`、`validate-findings.cjs`、`validate-coverage-ledger.cjs`。
