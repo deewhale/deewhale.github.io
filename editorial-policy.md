@@ -5,7 +5,7 @@ permalink: /editorial-policy/
 description: Pepper 技术博客的内容方向、资料来源、AI 辅助方式与修订说明。
 ---
 
-<article class="page prose">
+<article class="page prose" markdown="1">
 
 # 编辑说明
 

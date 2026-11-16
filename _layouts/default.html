@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#f3f5f1">
+    <meta name="theme-color" content="#ffffff">
     {% include seo.html %}
     <link rel="alternate" type="application/atom+xml" title="{{ site.title }}" href="{{ '/feed.xml' | relative_url }}">
     <link rel="icon" href="{{ '/assets/favicon-96.png' | relative_url }}" type="image/png" sizes="96x96">
@@ -25,7 +25,7 @@
     <div class="page-shell">
       <header class="site-header">
         <a class="brand" href="{{ '/' | relative_url }}" aria-label="返回首页">
-          <span class="brand-mark" aria-hidden="true">p.</span>
+          <span class="brand-mark" aria-hidden="true"></span>
           <span>{{ site.title }}</span>
         </a>
         <nav class="site-nav" aria-label="主导航">
@@ -42,10 +42,10 @@
       <main id="main-content">{{ content }}</main>
 
       <footer class="site-footer">
-        <p>© {{ 'now' | date: '%Y' }} Pepper · 保持好奇，持续记录。</p>
+        <p>© {{ 'now' | date: '%Y' }} Pepper　保持好奇，持续记录。</p>
         <div class="footer-links">
           <a href="{{ '/editorial-policy/' | relative_url }}">编辑说明</a>
-          <a href="https://github.com/{{ site.author.github }}" rel="me">GitHub ↗</a>
+          <a href="https://github.com/{{ site.author.github }}" rel="me">GitHub</a>
         </div>
       </footer>
     </div>

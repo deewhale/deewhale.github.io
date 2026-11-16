@@ -5,7 +5,7 @@ permalink: /about/
 description: 关于 Pepper，以及这个聚焦 AI 编程、软件工程、系统架构和开源项目研究的中文技术博客。
 ---
 
-<article class="page prose">
+<article class="page prose" markdown="1">
 
 # 关于
 

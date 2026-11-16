@@ -5,7 +5,7 @@ permalink: /topics/
 description: 按主题浏览 Pepper 的 AI 编程、软件工程、系统架构与开源项目文章。
 ---
 
-<article class="page prose">
+<article class="page prose" markdown="1">
 
 # 主题索引
 

@@ -3,15 +3,15 @@ layout: default
 ---
 <article class="post">
   <header class="post-header">
-    <a class="back-link" href="{{ '/' | relative_url }}">← 返回文章列表</a>
+    <a class="back-link" href="{{ '/' | relative_url }}">返回文章列表</a>
     <h1>{{ page.title }}</h1>
     {% if page.description %}<p class="post-deck">{{ page.description }}</p>{% endif %}
     <div class="post-meta">
       {% assign record_date = page.display_date | default: page.date %}
       <time datetime="{{ record_date | date: '%Y-%m-%d' }}">记录日期 {{ record_date | date: '%Y 年 %m 月 %d 日' }}</time>
-      <span>·</span><a class="post-byline" rel="author" href="{{ site.author.url }}">{{ site.author.name }}</a>
-      {% if page.tags.size > 0 %}<span>·</span><span>{{ page.tags | join: ' / ' }}</span>{% endif %}
-      <span>·</span><a class="post-method" href="{{ '/editorial-policy/' | relative_url }}">编辑方法</a>
+      <a class="post-byline" rel="author" href="{{ site.author.url }}">{{ site.author.name }}</a>
+      {% if page.tags.size > 0 %}<span>{{ page.tags | join: ' / ' }}</span>{% endif %}
+      <a class="post-method" href="{{ '/editorial-policy/' | relative_url }}">编辑方法</a>
     </div>
   </header>
 
@@ -52,6 +52,6 @@ layout: default
         </a>
       {% endif %}
     </nav>
-    <a class="all-posts-link" href="{{ '/' | relative_url }}">查看全部文章 →</a>
+    <a class="all-posts-link" href="{{ '/' | relative_url }}">查看全部文章</a>
   </footer>
 </article>
