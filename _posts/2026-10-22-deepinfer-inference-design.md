@@ -230,7 +230,7 @@ SGLang 的 overlap loop 同样先提交当前 forward、处理上一批，再执
 
 SWA bounded replay 选择只重放末尾有限区间，并把区间外的滑窗依赖截断。若重放起点为 s，逻辑窗口为 128，位置 i 的 query 只访问 `max(s, i−127)` 到 i 的 key。得到的是近似的 SWA KV；重放开头缺少的依赖，无法仅凭“每层都是局部窗口”证明无影响。
 
-encoder 仍处理所需输入，跨层 block KV 路径仍保留；consumer 层用有限后缀建立后续 decode 要用的局部状态，减少完整 decoder 前向工作。重建结果只用于 decode，不进入前缀缓存。
+V4.1 的 encoder 仍处理所需输入，跨层 block KV 由最后一组 encoder 隐藏状态投影得到。decoder 的 consumer 层可以复用这部分 block KV，只用有限后缀近似重建 decode 所需的局部 SWA 状态，减少 decoder 的 prefill 计算。前缀缓存继续保存 block KV，重建的 SWA 状态供后续 decode 使用。
 
 官方生产设计还把同一思想用于另一种情形：block 前缀缓存命中、SWA 状态却缺失时，回退一个 block，重建近尾 SWA；已命中的 block KV 继续复用。这与每次 prefill 在 decoder 侧少算 consumer 工作，触发条件不同。分开两条路径，才能知道缓存命中究竟省掉了哪部分计算。
 
