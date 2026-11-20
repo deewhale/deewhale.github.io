@@ -33,7 +33,7 @@ Foundry 承担数据接入、处理和应用建设，AIP 将生成式 AI 接入�
 
 ## 业务对象、关系与来源数据映射
 
-可以沿官方“航班更换飞机”的例子理解模型。`Flight` 和 `Aircraft` 是对象类型，分别定义航班和飞机有哪些属性；某个具体航班和候选飞机则是带主键的对象实例。两者通过分配关系连接，后续换机操作改变的是这个关系。模型先把“哪一班”“哪一架”“当前分配给谁”表达出来，操作才有明确目标。
+Palantir 在《Submission criteria》中用航班换机演示 Action 的提交条件。先看这个例子涉及哪些对象。`Flight` 和 `Aircraft` 是对象类型，分别定义航班和飞机有哪些属性；某个具体航班和候选飞机则是带主键的对象实例。两者通过分配关系连接，后续换机操作改变的是这个关系。模型先把“哪一班”“哪一架”“当前分配给谁”表达出来，操作才有明确目标。
 
 字段的数据类型负责表示值，Object type 把这些值组织成有身份的业务对象。同一架飞机可以被列表展示、函数读取，也可以作为 Action 的参数，无需每个应用重新解释一串来源字段。
 
@@ -47,7 +47,7 @@ Link type 再定义类型之间的关系，具体 Link 连接对象实例。关�
 
 ## 元数据管理、对象索引与查询服务
 
-对象类型和 Action 定义之外，后端还要把来源变化写入可查询状态，让应用在权限范围内读取对象。官方后端架构将定义管理、索引和读取分为几项职责：
+对象类型和 Action 定义之外，后端还要把来源变化写入可查询状态，让应用在权限范围内读取对象。Palantir 的《Ontology backend architecture》将定义管理、索引和读取分为几项职责：
 
 | 部件 | 保存或处理的对象 | 对应用的意义 |
 |---|---|---|
@@ -89,7 +89,7 @@ Writeback webhook 在其他规则及对象变化之前执行。外部请求失�
 
 Side-effect webhook 则在对象修改之后运行，用户可能先看到成功；多个副作用没有固定执行顺序。它适合通知或尽力而为的投递。
 
-官方明确保留了一种 Writeback 故障窗口：外部请求已经成功，Ontology 的后续变更却失败。面对这种窗口，集成方需要让外部写入对应到可识别的业务请求，超时后查询其结果，并安排来源更新重新进入读取视图。稳定请求身份与幂等需要由接受请求的系统或集成层实现。
+Palantir 在 Action 文档的《Webhooks》一节指出，外部请求可能已经成功，Ontology 的后续变更却失败。面对这种窗口，集成方需要让外部写入对应到可识别的业务请求，超时后查询其结果，并安排来源更新重新进入读取视图。稳定请求身份与幂等需要由接受请求的系统或集成层实现。
 
 同样，Ontology 页面显示的更新不能独自证明原系统完成了交易。若某字段由外部系统持有最终权威，完成判定应回到该系统的结果和后续读取。否则，公共模型容易把“已请求”“已写入平台”和“外部已确认”合成一个模糊状态。
 
@@ -103,7 +103,9 @@ Ontology 被多个应用复用后，模型变更会影响更大的消费者集�
 
 Global Branching 给共享定义的修改提供了独立开发位置。官方示例先在同一个分支上修改数据流水线的输出逻辑和字段，再在 Ontology Manager 中调整由该数据集支持的对象类型。来源结构和对象映射可以一起检查，不必先改动主分支，让现有消费者面对一份尚未配套完成的定义。对已迁入项目权限、并启用保护的对象类型、Link 或 Action 等资源，修改必须先存到分支，再经过 proposal 合并。
 
-消费者也要进入检查范围。以官方支持的 OSDK React 应用集成为例，应用、Ontology 资源和源码使用同一个 global branch；定义或资源集合变化后，在分支生成 SDK，安装更新后的依赖，再运行应用或 PR 预览。应用拿到的类型与它实际读取的分支由此对应起来。验证 Action 之前，还要先完成它会编辑的所有对象类型的分支索引；测试产生的对象编辑留在分支，不随定义一起合入主分支。Webhook 默认不在分支执行；测试时需显式启用，启用后仍使用已配置的外部目标。
+消费者也要进入检查范围。Palantir 的《Branching Developer Console applications》以 OSDK React 应用为例，应用、Ontology 资源和源码使用同一个 global branch。定义或资源集合变化后，在分支生成 SDK，安装更新后的依赖，再运行应用或 PR 预览。应用拿到的类型与它实际读取的分支由此对应起来。
+
+分支测试 Action 还有一项前提。《Branching action types》要求先完成所有将被编辑的对象类型的分支索引。测试产生的对象编辑留在分支，不随定义一起合入主分支。Webhook 默认不在分支执行；测试时需显式启用，启用后仍使用已配置的外部目标。
 
 开发期间主分支继续变化，包含 Ontology 修改的分支需要手动 rebase：先载入主分支更新，再逐资源处理与本分支的冲突。准备交付时建立 proposal，合并检查先检查资源是否能够合入，具备相应批准权限的审查者再按资源与项目政策审核变更。检查和批准满足后，合并 Global Branching proposal，才会推进 Ontology 的合并。
 
@@ -124,21 +126,3 @@ Global Branching 给共享定义的修改提供了独立开发位置。官方示
 当多个团队、应用和 Agent 需要共同查询并操作同一组业务对象时，公共模型能减少身份映射、参数解释、权限规则和界面逻辑的重复。相应成本是模型治理、平台接入和跨系统集成；来源事实混乱时，平台会把混乱暴露出来，组织仍需作出裁决。
 
 合适的起点是选一组数据来源明确、标识清楚、确实有多个应用要用的对象，先把读取跑通，再开放少数后果明确的操作。要不要扩大，看两点：新接入的应用是否真的复用了已有的对象和 Action，出了问题能否查清是来源数据、Action 还是外部系统的原因。
-
-## 主要参考资料
-
-1. Palantir《The Ontology system》。
-2. Palantir《Ontology overview》。
-3. Palantir《Types reference》。
-4. Palantir《Ontology backend architecture》。
-5. Palantir《Object Set Service limitations》。
-6. Palantir《Submission criteria》。
-7. Palantir《Action types》。
-8. Palantir《Permissions》。
-9. Palantir《Webhooks》。
-10. Palantir《Action log》。
-11. Palantir《Ontology SDK overview》。
-12. Palantir《Global Branching》：分支开发、rebase、资源审查与合并。
-13. Palantir《Branching the ontology》：分支开发、rebase、资源审查与合并。
-14. Palantir《Branching Developer Console applications》：SDK 与分支测试的接入及应用发布。
-15. Palantir《Branching action types》：Action 测试条件。

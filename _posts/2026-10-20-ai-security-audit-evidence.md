@@ -95,10 +95,6 @@ Cloudflare 的 security-audit-skill 是一套交给 Coding Agent 使用的审计
 
 搜寻 Agent 阅读源码并提出候选问题。独立验证者检查对应路径和成立条件，把依据写进报告。接手的工程师可以据此核对根因，设计修复和回归检查。
 
-## 主要参考资料
+## 实现出处
 
-1. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：README。
-2. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`skills/security-audit/` 下的 SKILL。
-3. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`skills/security-audit/` 下的 RECONNAISSANCE。
-4. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`VALIDATION-AND-REPORTING.md`，第 3—6 阶段：候选验证、结构化输出、独立记录复核与报告。
-5. Cloudflare `security-audit-skill`，源码提交 `c1c8a8c`：`report-schema.json`、`validate-findings.cjs`、`validate-coverage-ledger.cjs`。
+Cloudflare `security-audit-skill`，提交 `c1c8a8c`。候选验证与独立复核见 `VALIDATION-AND-REPORTING.md` 第 3—6 阶段；报告与覆盖记录的机器校验见 `validate-findings.cjs` 和 `validate-coverage-ledger.cjs`。

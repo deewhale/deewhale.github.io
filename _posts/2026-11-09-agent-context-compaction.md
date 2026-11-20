@@ -12,7 +12,7 @@ tags: [Agent, 系统设计]
 
 Agent 每调用一次模型，都要由运行框架组织这一轮输入：指令、会话消息，以及已经取回的工具结果。任务持续推进时，新的搜索结果、文件内容、尝试和修正不断加入历史；模型的上下文窗口却有容量上限，长任务不能始终把完整轨迹放进每次调用。
 
-上下文压缩（context compaction）通常在接近窗口预算时，把较早的对话与工具记录改写成摘要，再用摘要组织后续输入，为新交互腾出空间。Anthropic 的工程文章《Effective context engineering for AI agents》把这种做法与窗口外的持久笔记区分开来：笔记保存之后，仍需在后续调用中重新取入。磁盘上的代码、文件和测试结果可以继续存在，只有运行框架把内容加入输入，或 Agent 调用工具读回内容，它们才进入这一轮模型可见的材料。
+上下文压缩（context compaction）通常在接近窗口预算时，把较早的对话与工具记录改写成摘要，再用摘要组织后续输入，为新交互腾出空间。Anthropic 在 2025 年发表的《Effective context engineering for AI agents》把这种做法与窗口外的持久笔记区分开来：笔记保存之后，仍需在后续调用中重新取入。磁盘上的代码、文件和测试结果可以继续存在，只有运行框架把内容加入输入，或 Agent 调用工具读回内容，它们才进入这一轮模型可见的材料。
 
 压缩要解决的问题，是缩短输入之后，Agent 仍能依据必要的信息继续工作：目标是什么，哪些事实已经确认，工作做到了哪里，还有什么没有解决。用户指定的修改范围、执行顺序和后来补充的要求，也属于这些信息。摘要若只记下进度，后续执行仍可能遗漏要求、重复失败的尝试，或者把尚未验证的工作当成已经完成。
 
@@ -64,7 +64,7 @@ Salle 等人的论文在 ProgramBench 中观察到的就是这种累积路径：
 
 压缩不只是删除。为了写清“当前状态”和“下一步”，压缩器会解释先前发生的事情，这一步解释也可能产生错误。
 
-Guanghui Min 与 Chen Chen 的论文《Prune the Summary, Not the History: Source-Judged Compaction for Long-Horizon Agents》研究了这条路径。它所分析的结构化摘要包含决定、待办和用户待处理请求。摘要中的一项待办可能来自实际工具观察，也可能是压缩器根据任务自行推断的安排；后续 Agent 看到它们时，两者已经具有相近的文字外观。
+Guanghui Min 与 Chen Chen 在 2026 年发表的《Prune the Summary, Not the History: Source-Judged Compaction for Long-Horizon Agents》研究了这条路径。它所分析的结构化摘要包含决定、待办和用户待处理请求。摘要中的一项待办可能来自实际工具观察，也可能是压缩器根据任务自行推断的安排；后续 Agent 看到它们时，两者已经具有相近的文字外观。
 
 在论文提供的 AppWorld 基准轨迹中，用户要求复制昨天的习惯记录，并将今天的冥想项记为否。摘要却把这个要求解释成删除冥想这一行。后续 Agent 按摘要中的安排执行，就会把“保留条目、修改值”变成“移除条目”。错误发生在两种操作之间的语义转换，并不需要丢失整个任务目标。
 
@@ -99,9 +99,3 @@ Guanghui Min 与 Chen Chen 的论文《Prune the Summary, Not the History: Sourc
 对有来源检查的摘要，还可以逐项追踪：某条决定依据哪段观察，删除后是否仍有足够材料继续，保留下来的错误是否来自旧摘要。这样能够分清“没有把原要求带过来”和“带来了一项无依据的新安排”，修复时也就知道该补保存路径，还是该限制摘要生成的新解释。
 
 [Agent 压缩总成本分析](/posts/agent-compression-total-cost/)讨论压缩在后续运行中带来的成本变化。评估压缩是否有效，还要看省下上下文之后，Agent 能否继续完成原来的任务：关键内容留在当前输入，详细材料有可用的读取入口，摘要里的事实和待办能与来源核对。减少文本的同时保住这些信息，压缩才有实际收益。
-
-## 主要参考资料
-
-1. Anthropic，《Effective context engineering for AI agents》，2025。
-2. Jeanne Salle、Hardik Bhatnagar、Matthias Bethge、Sahar Abdelnabi、Maksym Andriushchenko，《Benchmarks Are Surprisingly Compaction-Friendly》，2026。
-3. Guanghui Min、Chen Chen，《Prune the Summary, Not the History: Source-Judged Compaction for Long-Horizon Agents》，2026。

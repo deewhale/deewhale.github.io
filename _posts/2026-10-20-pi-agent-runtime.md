@@ -208,19 +208,9 @@ Durable 的 documents 为应用可变状态提供了持久位置，可以与相�
 
 试用 Durable 之前，建议拿自己真实的工具逐个过一遍四个问题：中断后恢复用的是哪份参数；从哪个时间点起，外部可能已经产生了效果；什么条件下可以重跑；最终结果由谁确认。然后固定好代码版本，保证存储只有一个进程在写，再把恢复流程实际演练一次。
 
-## 主要参考资料
+## 实现出处
 
-1. Earendil《Pi 1.0》。
-2. Earendil《Pi Durable》。
-3. Pi Durable README。
-4. Pi Durable 1.4 Release Notes。
-5. Pi Durable Harness Specification。
-6. Pi Coding Agent《SDK》。
-7. Pi Coding Agent《Session Format》。
-8. Pi Coding Agent《Extensions》。
-9. Pi Coding Agent《CLI Integration》。
-
-核心实现固定为官方仓库 `earendil-works/pi` 的 `v1.4.0`，commit `4a080252f06caf63a525d7873c5d94d3c23887e0`：
+Earendil 的《Pi 1.0》和《Pi Durable》记录了首发时的设计。下表对应 `earendil-works/pi` v1.4.0（`4a080252f06caf63a525d7873c5d94d3c23887e0`）中的实现。
 
 | 参考对象 | 仓库内路径 |
 |---|---|

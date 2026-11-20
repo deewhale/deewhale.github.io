@@ -17,7 +17,7 @@ Agno 是构建 Agent 的 Python 框架，开发者在代码里配置模型、工
 
 ## Paperclip 的组织、Agent 与任务管理
 
-Paperclip 的官方首次使用教程从建立组织开始。启动服务、进入工作台后，先建立组织，再到 Goals 中补充目标。目标说明为什么做，项目归集相关工作，任务（Issue）写明具体要做什么。Agent 则记录承担工作的角色，以及它与其他角色的分工和汇报关系。
+Paperclip 的《Create Your First Company》从建立组织开始。启动服务、进入工作台后，先建立组织，再到 Goals 中补充目标。目标说明为什么做，项目归集相关工作，任务（Issue）写明具体要做什么。Agent 则记录承担工作的角色，以及它与其他角色的分工和汇报关系。
 
 教程选择 CEO 作为第一个 Agent。这个名称表示岗位职责：读取目标、提出策略、向其他角色分派工作。要让这个岗位真正工作，用户还得选择要接入的 Agent，准备它需要的模型账号或凭证，并配置工作环境。
 
@@ -224,23 +224,8 @@ Agno 的 usage、metrics 用于观察消耗，并发配置用于限制同时运�
 
 两套产品的出发点不同，在长期任务管理上又有重叠。选的时候回到自己的工作流程：需求在哪里提，谁来推进，结果在哪里验收。先看每套系统能承担哪些环节，再判断连接两套系统是否值得。
 
-## 主要参考资料
+## 实现出处
 
-1. Paperclip 官方文档《What is Paperclip》。
-2. Paperclip 官方文档《Create Your First Company》。
-3. Paperclip 官方文档《Hire Your First Agent》。
-4. Paperclip 官方文档《Watching Agents Work》。
-5. Paperclip 官方文档《Execution Policy》。
-6. Paperclip 官方文档《Costs & Budgets》。
-7. Paperclip 源码：HTTP adapter、任务服务、heartbeat 调度与恢复实现。
-8. Agno 官方文档《SDK Introduction》。
-9. Agno 官方文档《Run Your First AgentOS》。
-10. Agno 官方文档《Connect Your AgentOS》。
-11. Agno 官方文档《Control Plane》。
-12. Agno 官方文档《Approvals Overview》。
-13. Agno 官方文档《Durable Queue》。
-14. Agno 官方编排示例《Coordinate Mode》。
-15. Agno 官方编排示例《Workflow Using Steps》。
-16. Agno Company 官方示例：Company README。
-17. Agno Company 官方示例：`06_execute_tasks.py`。
-18. Agno `v3.1.11` 发布说明：外部 Agent 与 Team、Workflow 的接入。
+- Paperclip《Watching Agents Work》《Execution Policy》《Costs & Budgets》及任务服务、heartbeat 源码。分派、领取、调度和预算限制。
+- Agno《Approvals Overview》《Durable Queue》。工具执行审批与异步任务状态。
+- Agno Company 示例 `06_execute_tasks.py` 与 Agno v3.1.11 发布说明。Company 如何运行任务，以及如何接入外部 Agent、Team 和 Workflow。

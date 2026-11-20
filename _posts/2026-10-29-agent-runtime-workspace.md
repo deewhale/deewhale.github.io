@@ -233,25 +233,8 @@ Runtime 观察到进程结束，应用才有条件判断这一轮工作是否完
 
 检验一套 Runtime 设计，可以拿一个环境从头问到尾：它凭什么被创建，资源落在哪个节点，工具怎么找到它，谁在持续核对它的状态，成果怎么交出去，最后由谁核对执行身份并回收对应实例。单机上一个应用配一个环境要回答这些问题，多节点的服务也一样。
 
-## 主要参考资料
+## 实现出处
 
-1. E2B：Runtime Architecture 的 Services、Client proxy、Sandbox routing records、Pause and resume 部分。
-2. E2B runtime 主线源码：`nodemanager/sync.go`、`sandbox/store.go`、`placement_best_of_K.go`、`evictor/evict.go`。
-3. E2B：Commands — Background。
-4. E2B：Sandbox Persistence。
-5. E2B：LangChain Deep Agents。
-6. E2B：Internet Access。
-7. E2B：Injecting Secrets into Requests。
-8. LangChain：Deep Agents 的 `FilesystemMiddleware`、`BaseSandbox`。
-9. LangChain：`langchain-e2b` 的 `E2BSandbox` 实现。
-10. OpenHands Software Agent SDK：Architecture Overview。
-11. OpenHands Software Agent SDK：Remote Agent Server Overview。
-12. OpenHands Software Agent SDK：`DockerWorkspace`、`TerminalTool` 和终端执行实现。
-13. Daytona：Architecture。
-14. Daytona：Sandboxes。
-15. Modal：Sandboxes。
-16. Modal：Sandbox Files。
-17. Modal：Sandbox Networking。
-18. Modal：Sandbox Snapshots。
-19. gVisor：Architecture Guide。
-20. gVisor：Security。
+- E2B《Runtime Architecture》《Sandbox Persistence》。沙箱归属与请求路由、暂停与恢复。节点选择与状态同步见 `placement_best_of_K.go`、`nodemanager/sync.go` 和 `sandbox/store.go`。
+- OpenHands Software Agent SDK《Remote Agent Server Overview》及 `DockerWorkspace`、`TerminalTool` 实现。远程 Agent 服务如何连接工作区和进程执行。
+- Modal《Sandbox Snapshots》与 gVisor《Architecture Guide》。文件与运行状态的恢复范围，以及用户态内核的隔离方式。

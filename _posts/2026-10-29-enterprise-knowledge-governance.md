@@ -233,34 +233,8 @@ Azure Architecture Center 的《Develop a RAG solution — Information retrieval
 
 起步可以很小：选一批有明确负责人、版本和访问规则的文档，接通搜索和原文读取，然后实际演练一次内容更新、权限收回和文档删除，确认每一种变化都传到了搜索结果里。这条路走通了，再根据实际遇到的漏检或读不全的问题，逐步加检索手段。
 
-## 主要参考资料
+## 实现出处
 
-1. GitLab Handbook：《Glean End User Guide》。
-2. Glean：《Access verification》。
-3. Glean：《Permissions (Google Drive)》。
-4. Glean：《How verification works》。
-5. Microsoft Inside Track：《How we’re tackling Microsoft 365 Copilot governance internally at Microsoft》，2026-05-07。
-6. Microsoft Learn：《Restrict discovery of SharePoint sites and content》。
-7. 《Dense Passage Retrieval for Open-Domain Question Answering》，2020。
-8. 《Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks》，2020。
-9. Elastic：《Hybrid search》。
-10. Elastic：《Reciprocal rank fusion》。
-11. Azure AI Search：《Relevance scoring in hybrid search using Reciprocal Rank Fusion》。
-12. Azure AI Search：《Semantic ranking overview》。
-13. 《RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval》，2024。
-14. 《From Local to Global: A Graph RAG Approach to Query-Focused Summarization》，v2，2025。
-15. Azure AI Search：《Agentic retrieval overview》。
-16. Azure AI Search：《Use a SharePoint indexer to ingest permission metadata》。
-17. Azure AI Search：《Query-time ACL and RBAC enforcement》。
-18. Azure AI Search：《Run or reset indexers》。
-19. Azure AI Search：《Change and delete detection using indexers for Azure Storage》。
-20. Azure AI Search：《Create a remote SharePoint knowledge source》。
-21. Microsoft Graph：《Create, update, and delete items in a Microsoft Graph connection》。
-22. Azure Architecture Center：《Develop a RAG solution — Information retrieval phase》。
-23. Microsoft Foundry：《RAG evaluators for generative AI》。
-24. LangChain：`ParentDocumentRetriever`。
-25. LlamaIndex：`AutoMergingRetriever`、`RecursiveRetriever` 官方参考。
-26. Cognee v1.6.5，提交 `37f788b`：`cognee/api/v1/search/search.py`、`cognee/api/v1/recall/recall.py`、`cognee/modules/retrieval/graph_completion_context_extension_retriever.py`、`cognee-mcp/src/retrieval_utils.py`、`cognee_client.py`、`server.py`。
-27. Cognee v1.6.6rc1，提交 `277a314`：同类检索与 MCP 入口，以及 `cognee/api/v1/datasets/routers/get_datasets_router.py` 的原件读取路径。
-28. Hindsight v1.1.0，提交 `a5a619b`，及主分支提交 `6decc29`：`hindsight-api-slim/hindsight_api/engine/memory_engine.py`、`mcp_tools.py`、`api/http.py`。
-29. Hindsight 官方 Documents 与 Configuration 文档。
+- Cognee v1.6.5（`37f788b`）与 v1.6.6rc1（`277a314`）。图检索与召回见 `cognee/api/v1/search/search.py`、`cognee/api/v1/recall/recall.py`；预发布版的原件入口见 `cognee/api/v1/datasets/routers/get_datasets_router.py`。
+- Hindsight v1.1.0（`a5a619b`）及主线 `6decc29`。事实检索与来源回查见 `hindsight-api-slim/hindsight_api/engine/memory_engine.py` 和 `api/http.py`。
+- Azure AI Search《Create a remote SharePoint knowledge source》与 Microsoft Graph《Create, update, and delete items in a Microsoft Graph connection》。前者描述远程读取 SharePoint，后者说明如何更新和删除由连接器提交的外部项目。

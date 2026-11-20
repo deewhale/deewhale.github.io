@@ -64,7 +64,7 @@ Agent 的初始化响应则声明自己的能力：
 
 相同的 JSON-RPC `id` 把响应对应到初始化请求。`loadSession: false` 表示这个 Agent 不支持加载已有会话，客户端不应发起该请求。未声明的可选能力同样按不支持处理。
 
-如果 Agent 返回的协议版本不在客户端支持范围，客户端需要终止不兼容连接。继续把字段按自己理解解析，可能到敏感操作时才暴露错位。网站所标的协议 v1，与 Schema 1.27.0、Rust Crate 1.13.0 这类发行版本属于不同编号：后者的升级增加的是向后兼容的能力，消息里的 `protocolVersion` 仍是 1。
+如果 Agent 返回的协议版本不在客户端支持范围，客户端需要终止不兼容连接。继续把字段按自己理解解析，可能到敏感操作时才暴露错位。网站所标的协议 v1（见《Initialization》中的版本协商），与 Schema 1.27.0、Rust Crate 1.13.0 这类发行版本属于不同编号：后者的升级增加的是向后兼容的能力，消息里的 `protocolVersion` 仍是 1。
 
 初始化之后，若实现需要认证，再完成对应认证路径。随后 `session/new` 提供会话工作目录 `cwd` 和 MCP 服务器列表 `mcpServers`，Agent 返回 `sessionId`。工作目录要是绝对路径；客户端应把它绑定到用户选定的项目。
 
@@ -195,8 +195,6 @@ else:
 
 如果只想在编辑器里显示 Agent 最后输出的文字，启动一个命令、收集它的输出就够了。要显示工具进度、让用户逐项确认权限，或者让多种编辑器接同一个 Agent，才值得接 ACP。接完以后，照上面这张表把每一行实际跑一遍。
 
-## 主要参考资料
+## 协议查阅
 
-1. Agent Client Protocol v1：Overview、Architecture、Initialization。
-2. Agent Client Protocol v1：Session Setup、Tool Calls、File System。
-3. Agent Client Protocol v1：Cancellation、Extensibility、Schema。
+本文依据 Agent Client Protocol v1。会话建立见《Session Setup》。工具进度、文件能力与取消行为分别见《Tool Calls》《File System》《Cancellation》，扩展声明见《Extensibility》。

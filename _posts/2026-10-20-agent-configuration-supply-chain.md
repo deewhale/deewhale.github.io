@@ -110,11 +110,7 @@ Pi 的内置 MCP 可以说明配置选择与运行授权的区别。以 v1.4.0 �
 
 这些检查可以并入现有的代码审查：一次配置变更，把配置文件、它带来的可执行代码和权限变化放在一起看，由熟悉目标客户端的人复核。扫描工具帮忙找到该看的地方，固定版本保证看到的就是会运行的那一份，沙箱限制出事后的影响；这个配置要的权限和它声称的用途是否相称，还是得由人判断。
 
-## 主要参考资料
+## 实现出处
 
-1. Scanning the Harness: Configuration Exposures in AI Coding-Agent Supply Chains，v3。
-2. Agent Skills Specification。
-3. Claude Code Hooks Reference。
-4. Claude Code Permissions。
-5. Pi：文档《MCP Servers》。
-6. Pi：文档《Run Pi safely》。
+- 《Scanning the Harness: Configuration Exposures in AI Coding-Agent Supply Chains》v3。公开仓库的取样口径和预批准声明统计。
+- Claude Code《Hooks reference》《Permissions》与 Pi《MCP Servers》《Run Pi safely》。实际何时触发配置，以及权限判断由哪一层执行。

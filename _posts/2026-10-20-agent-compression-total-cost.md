@@ -92,9 +92,7 @@ C = U·p输入 + R·p读取 + W₅·p五分钟写入 + W₆₀·p一小时写入
 
 哪些输出适合先压？大段重复的正常日志可以先试：去掉重复行，把报错部分留下。调试任务要看细节差异，先保留完整输出更稳妥。要不要推广，看两个数：任务通过率有没有掉，每个成功任务的花费有没有降。压缩率只用来帮助解释这两个数为什么变了。
 
-## 主要参考资料
+## 测量出处
 
-1. RTK：README。
-2. RTK：Gain Analytics。
-3. Quesma：《RTK reports huge token savings, but our cost benchmarks disagree》。
-4. Pi：文档《Codemode》与 tool_search 实现。
+- RTK《Gain Analytics》。日志中的 token 估算口径。
+- Quesma《RTK reports huge token savings, but our cost benchmarks disagree》。比较过滤后的输出量与完整任务成本。

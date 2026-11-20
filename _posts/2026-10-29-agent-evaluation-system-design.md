@@ -14,7 +14,7 @@ Agent 评测体系负责为系统变更提供可复核的质量证据：给定�
 
 这项工作的产物不止一个分数。开发者需要知道失败发生在哪里，发布负责人需要知道新版本改变了什么，领域人员需要确认评判标准是否符合实际目标。一套可用体系，要让这几种判断共享同一次执行证据。
 
-monday Service 团队使用已经解决并脱敏的真实 IT 工单建立基础集，先检查运行健康、输出结构、状态持久化和工具调用，再增加检索、政策冲突、调用顺序等专项测试。他们把离线实验接入 CI，也对多轮线上会话评分。这项由 monday.com 团队公开的实践显示，系统每承担一种工作，就需要留下能够判断这项工作是否完成的证据。
+Gal Ben Arieh 在《monday Service + LangSmith: Building a Code-First Evaluation Strategy from Day 1》（2026 年 2 月）中记录了团队的做法。monday Service 团队使用已经解决并脱敏的真实 IT 工单建立基础集，先检查运行健康、输出结构、状态持久化和工具调用，再增加检索、政策冲突、调用顺序等专项测试。他们把离线实验接入 CI，也对多轮线上会话评分。这项由 monday.com 团队公开的实践显示，系统每承担一种工作，就需要留下能够判断这项工作是否完成的证据。
 
 LangSmith、Braintrust 等产品保存数据集、实验和执行轨迹，使这些检查可以逐题回查。评测的设计则从任务要求开始。一次 IT 工单除了回复正确，可能还要求工具真正执行、状态已经保存，以及处理顺序符合政策。每项要求先确定从哪里取得判断依据，再决定使用代码、模型裁判还是人工评分。
 
@@ -57,7 +57,7 @@ monday 的案例把这种分层带进了真实应用。基础检查先排除系�
 
 这使“补丁能应用”“问题被修复”“已有行为没有发生已测出的回归”成为三个可观察判断。测试覆盖仍然限制结论的范围，但它已经把验收依据从模型解释转向实际产物及执行结果。
 
-另一个参考是 2024 年的 τ-bench。它研究带工具和政策约束的多轮交互：用户模拟器与 Agent 对话，工具操作环境，任务给出应达到的状态与必要输出。论文 Figure 2 的零售任务包含退货、换货和金额比较，Agent 需要结合政策与用户偏好完成选择。
+2024 年论文《τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains》（arXiv:2406.12045v1）研究带工具和政策约束的多轮交互：用户模拟器与 Agent 对话，工具操作环境，任务给出应达到的状态与必要输出。论文 Figure 2 的零售任务包含退货、换货和金额比较，Agent 需要结合政策与用户偏好完成选择。
 
 这里必须区分四个对象。**任务（task）**定义用户目标、初始环境和成功条件；**一次执行（trial）**是 Agent 从该初态出发完成任务的一次尝试；**轨迹（trace）**记录消息、工具参数和返回等过程；**结果（outcome）**是最终环境状态与交付产物。只拿最终回答评分，既看不到实际调用过程，也无法确认环境终态和交付产物。
 
@@ -165,22 +165,3 @@ Notion 的公开实践补上了另一段链条。Braintrust 的客户访谈《Ho
 起步不需要这么全。一批真实任务加几项明确的检查就可以开始，重要的是每个分数背后都留着记录，失败时能分清是题目有问题、环境有问题、评分器有问题，还是 Agent 真的做错了。成功标准由懂业务的人定，环境和记录由工程师维护，是否发布由负责人根据分项结果决定；小团队里这些角色可以是同一个人。
 
 应用或任务变化时，更新评测数据集和评分规则。每次比较都记录两者的版本。
-
-## 主要参考资料
-
-1. monday.com 团队，Gal Ben Arieh：《monday Service + LangSmith: Building a Code-First Evaluation Strategy from Day 1》，2026-02-18。
-2. Braintrust，Sarah Sachs 客户访谈：《How Notion evaluates AI at scale across 70 engineers》，资料查阅于 2026-10-29。
-3. LangSmith：《Manage datasets》，资料查阅于 2026-10-29。
-4. LangSmith：《Evaluation types》，资料查阅于 2026-10-29。
-5. LangSmith：《Use annotation queues》，资料查阅于 2026-10-29。
-6. LangSmith：`Client.evaluate` API，资料查阅于 2026-10-29。
-7. Arize Phoenix：《Datasets》，资料查阅于 2026-10-29。
-8. Arize Phoenix：《Annotations》，资料查阅于 2026-10-29。
-9. 《τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains》，arXiv 2406.12045v1，第 3 节与 Figure 2；源码提交 `59a200c6d575d595120f1cb70fea53cef0632f6b`。
-10. 《Ragas: Automated Evaluation of Retrieval Augmented Generation》，arXiv 2309.15217v2。
-11. OpenAI：《Introducing SWE-bench Verified》，2024-08-13。
-12. 《Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena》，arXiv 2306.05685v4。
-13. NIST/SEMATECH e-Handbook，第 7.2.4.1 节。
-14. Inspect：《Sandboxing》。
-15. Inspect：《Scorers》。
-16. Anthropic：《Demystifying evals for AI agents》，2026-01-09。

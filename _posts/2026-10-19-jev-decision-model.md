@@ -130,20 +130,8 @@ print(answer.choice, answer.probabilities, answer.confidence)
 
 适合 Jev 的起点是一项答案空间清楚、材料可取得、错误可回退且能收集真实标签的语义判断。先在旁路记录结果，验证问题定义、概率与采用规则；当三者共同满足任务要求，再让它参与实际分支。问题、候选或模型版本改变，就重新比较整条流程。
 
-## 主要参考资料
+## 实现出处
 
-1. TypeSafe：Introduction。
-2. TypeSafe：State。
-3. TypeSafe：Choice。
-4. TypeSafe：Score。
-5. TypeSafe：Noul。
-6. TypeSafe：Confidence。
-7. TypeSafe：Speculative fan-out。
-8. TypeSafe：Models。
-9. TypeSafe：TypeSafe Python SDK。
-10. TypeSafe：Answers and Responses。
-11. TypeSafe：Introducing System One Models & Jev。
-12. TypeSafe：AI Primer。
-13. TypeSafe：AutoResearch Cookbook。
-14. 原始项目：jev-phishing-bench。
-15. 概率组合研究：Do System One Decisions Add Up?
+- TypeSafe《Choice》《Score》《Noul》《Confidence》。三种判断接口的输出和置信度字段。
+- TypeSafe Python SDK 与《Answers and Responses》。示例的提问方式和返回结构。
+- TypeSafe《AutoResearch Cookbook》与 `jev-phishing-bench`。将语义判断用作下游分类器特征的原型。

@@ -230,9 +230,9 @@ Hindsight 适合跨会话保留经过选择的反馈，让具体事件形成可�
 
 ## 主要参考资料
 
-1. Hindsight 官方《Retain》《Observations》《Retrieval》《Reflect》与 API 文档，核查日期 2026-10-29；正文实现以稳定版 v1.1.0、提交 `a5a619b5` 为主。
+1. 以下实现以 Hindsight v1.1.0（`a5a619b5`）为准。
 2. 稳定源码：`hindsight-clients/python/hindsight_client/hindsight_client.py`；`hindsight-api-slim/hindsight_api/api/http.py`；`engine/retain/orchestrator.py`、`fact_storage.py`，用于核对输入、任务状态、文本保留及更新。
 3. 稳定源码：`engine/consolidation/consolidator.py`、`prompts.py`；`engine/search/retrieval.py`、`fusion.py`、`tags.py` 与 `engine/fact_budget.py`，用于核对归纳范围、检索融合及预算。
 4. 稳定源码：`engine/memory_engine.py`、`engine/reflect/agent.py`、`tools.py` 与 `engine/mental_model_refresh.py`，用于核对临时反思、持久答案刷新、人工修订与撤回依赖；以上 engine 相对路径均位于 `hindsight-api-slim/hindsight_api/` 下。
 5. 官方 Cookbook《CableConnect — AI Customer Service Copilot Demo》，固定提交 `38e17c65`；`applications/cable-co/backend/app/services/agent_service.py`、`memory_service.py`。
-6. Hindsight 主线截至提交 `6decc291` 的更新对照，其中 `6da3b8a5` 用于说明迟到旧事实处理的后续增强，未混入稳定版能力。
+6. 迟到旧事实的处理变更见 Hindsight 主线提交 `6da3b8a5`。

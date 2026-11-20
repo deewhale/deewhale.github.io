@@ -151,14 +151,9 @@ Linear 与 Jev 的官方演示符合后一个条件。每条 issue 都需要取�
 
 要用上这套设计，可以先挑一项自己实际做过的任务，把它拆开看：要用到哪些接口，哪几步需要模型判断，哪几步按固定规则就能做，最后要留下哪些结果。拆清楚了，哪些工具直接给模型、哪些按需加载、哪些步骤写成脚本，也就有了答案。
 
-## 主要参考资料
+## 实现出处
 
-1. Earendil Engineering《“You Said No MCP!”》（2026 年 9 月 29 日）。
-2. Earendil《Pi 1.0》（2026 年 10 月 1 日）。
-3. Pi 1.0.0 Release Notes。
-4. Pi 1.4.0 Release Notes。
-
-当前机制以官方仓库 `earendil-works/pi` 的 `v1.4.0` 为准，commit `4a080252f06caf63a525d7873c5d94d3c23887e0`：
+Linear 与 Jev 的组合示例出自 Earendil Engineering《“You Said No MCP!”》（2026 年 9 月 29 日）。下表对应 `earendil-works/pi` v1.4.0（`4a080252f06caf63a525d7873c5d94d3c23887e0`）中的实现。
 
 | 参考对象 | 仓库内路径 |
 |---|---|

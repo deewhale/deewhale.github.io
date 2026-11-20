@@ -18,7 +18,7 @@ last_modified_at: 2026-11-09 17:59:07 +0800
 
 ## 外部材料被误记为用户偏好的过程
 
-Sidharth Pulipaka 等人的论文《Hidden in Memory: Sleeper Memory Poisoning in LLM Agents》研究了外部材料影响长期记忆的过程。其中一种配置让独立管理器在助手回复后抽取记忆：管理器只看用户查询与助手完成文本，看不到上传文档和主模型的系统提示；它参照 Mem0 的加法抽取提示，输出独立事实数组。
+Sidharth Pulipaka 等人在 2026 年发表的《Hidden in Memory: Sleeper Memory Poisoning in LLM Agents》研究了外部材料影响长期记忆的过程。其中一种配置让独立管理器在助手回复后抽取记忆：管理器只看用户查询与助手完成文本，看不到上传文档和主模型的系统提示；它参照 Mem0 的加法抽取提示，输出独立事实数组。
 
 这条路径上，主模型读过的材料，并不都能被管理器看到。文档内容先影响助手回复，回复再成为抽取输入。如果回复保留了“材料声称”的身份，管理器还知道这是一项外部说法；如果回复已把它改写成用户偏好，管理器拿到的文本便失去了原始说话者。多一个模型无法凭空恢复上游删掉的关系。
 
@@ -99,8 +99,3 @@ W3C 在 2013 年发布的《PROV-DM: The PROV Data Model》提供了一种来源
 撤回检查继续沿同一关系展开：旧版本能否通过索引或缓存返回，衍生条目是否已停用或重算，新版本是否仍引用撤回依据。只有这些状态实际变化，才能说明失效已经传播到使用路径。
 
 [Hindsight Agent 记忆架构研究](/posts/hindsight-agent-memory/)讲的是记忆怎样组织和检索。本文补的是另一半：取出来的每条记忆，都要能回答原文在哪里、谁把它改写成现在这句话、用户确认过哪个版本、这次任务可以怎样用它。记忆内容更新时，这些记录也要跟着更新。
-
-## 主要参考资料
-
-1. Sidharth Pulipaka、Stanislau Hlebik、Leonidas Raghav、Sahar Abdelnabi、Vyas Raina、Ivaxi Sheth、Mario Fritz，《Hidden in Memory: Sleeper Memory Poisoning in LLM Agents》，2026。
-2. Luc Moreau、Paolo Missier 编，W3C，《PROV-DM: The PROV Data Model》，2013 年 4 月 30 日 Recommendation。

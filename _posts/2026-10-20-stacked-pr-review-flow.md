@@ -114,9 +114,6 @@ Coding Agent 可以负责一个层次的实现、说明和回归，前提是任�
 
 用之前先确认三点：每一层的改动能不能单独讲清楚，它依赖下层的什么，改完之后有没有办法验证整体。`gh-stack` 管的是分支、PR base 和依赖关系；下层改动后，由各层负责人更新受影响的说明和组合测试。
 
-## 主要参考资料
+## 实现出处
 
-- GitHub gh-stack v0.3.0：README、rebase 与 submit 命令实现。
-- Git 官方手册：git-diff、git-rebase。
-- GitHub Docs：Merging stacked pull requests。
-- GitHub Changelog：Stacked pull requests generally available。
+GitHub CLI 扩展 `gh-stack` v0.3.0 的 README、`rebase` 与 `submit` 实现对应示例及分支重排；队列行为见 GitHub Docs《Merging stacked pull requests》。

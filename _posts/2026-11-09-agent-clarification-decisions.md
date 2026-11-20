@@ -20,7 +20,7 @@ tags: [Agent, 人工智能, 工程设计]
 
 只有第三种情况需要开口问。前两种也去问，用户会被本可以自己查明的问题反复打扰；第三种不问、由模型猜一位拨过去，等于替用户做了决定。
 
-Manan Suri 等人的论文《Structured Uncertainty guided Clarification for LLM Agents》为这个选择设计了一套算法，叫 SAGE-Agent。它先让模型提出一组候选调用，再判断该追问还是执行当前得分最高的候选。一个问题越能区分候选，得分越高。重复询问同一参数会扣分。
+Manan Suri 等人在 Findings of ACL 2026 发表的《Structured Uncertainty guided Clarification for LLM Agents》为这个选择设计了一套算法，叫 SAGE-Agent。它先让模型提出一组候选调用，再判断该追问还是执行当前得分最高的候选。一个问题越能区分候选，得分越高。重复询问同一参数会扣分。
 
 ## 同名联系人是否需要用户确认
 
@@ -115,7 +115,3 @@ ACL Findings 2026 正式版的 ClarifyBench 包含文档、车辆、股票、旅
 Coverage 要求预测工具及全部必填参数值与基准答案完全一致，衡量的是正确工具参数调用的比例。SAGE-Agent 相对 Domain-aware ReAct 增加 4.03 个百分点，同时平均问题数减少约 45.7%。在这组基准任务中，SAGE-Agent 问得更少，正确调用的比例也更高。基准中的用户由语言模型模拟，真实用户的等待与隐私取舍要靠交互实验回答。
 
 把这套机制接入自己的 Agent 时，最值得保存的记录是每次提问前的候选、问题针对的参数、回答产生的域变化，以及停止后的实际调用。这样，一句多余追问可以回溯到未利用的观察，一次错误执行可以回溯到候选遗漏或过早停止。
-
-## 主要参考资料
-
-1. Manan Suri、Puneet Mathur、Nedim Lipka、Franck Dernoncourt、Ryan A. Rossi、Dinesh Manocha，University of Maryland, College Park 与 Adobe Research，《Structured Uncertainty guided Clarification for LLM Agents》，Findings of ACL 2026，§4—5、§7—8、Table 3。

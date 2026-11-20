@@ -115,8 +115,6 @@ Action 的代码固定之后，它仍可能安装包、拉取镜像、下载文�
 
 适合先接入的，是能维护依赖升级 PR、已有明确权限策略、依赖关系可解释的一组工作流。先观察新增 Action 是否会被覆盖检查发现，明确升级是否能追到提交和内部边，可复用工作流是否另有版本管理，再扩大范围。工作流可复现性由多种输入共同决定；依赖锁定先把其中可管理的 Action 选择变得可见和可审查。
 
-## 主要参考资料
+## 实现出处
 
-- GitHub Docs：Workflow dependency lockfiles；Lock workflow dependencies。
-- gh-actions-lock v0.4.0：README、官方 actions.lock、workflowfile 与 resolve 实现。
-- gh-actions-lock v0.4.0 release notes。
+GitHub Docs《Workflow dependency lockfiles》《Lock workflow dependencies》说明锁定范围；传递依赖示例取自 GitHub 官方 `gh-actions-lock` v0.4.0 的 `actions.lock`。

@@ -26,7 +26,7 @@ SpecAgent 研究的是这两者之间的一种分工：让小模型生成并试�
 
 ## 候选动作段与工具观察的记录
 
-Zilin Wang 等人在 2026 年论文《Trajectory-Level Speculation with Semantic Verification for Tool-Using Agents》中，将小模型称为 Weak，强模型称为 Strong。两者面对同一个任务环境，通过动作取得工具观察。这里的环境状态是数据库记录、工作区内容等任务数据；读取取得观察而不改变这些数据，写入则修改记录或提交结果。模型看到的却是任务、动作和返回结果组成的历史，历史是它作判断的证据，并不是环境本身。运行器将已经纳入后续使用的历史记为 H。
+Zilin Wang 等人在 2026 年论文《Trajectory-Level Speculation with Semantic Verification for Tool-Using Agents》的 arXiv v1 中，将小模型称为 Weak，强模型称为 Strong。两者面对同一个任务环境，通过动作取得工具观察。这里的环境状态是数据库记录、工作区内容等任务数据；读取取得观察而不改变这些数据，写入则修改记录或提交结果。模型看到的却是任务、动作和返回结果组成的历史，历史是它作判断的证据，并不是环境本身。运行器将已经纳入后续使用的历史记为 H。
 
 Weak 的工作区还包含一个当前候选段。生成查询后，运行器真的调用工具，把返回结果追加到这个段里。Weak 下一步看到的是 H 加上当前段，所以它可以从真实返回值中提取标识、发现查询失败，或调整搜索方向。
 
@@ -97,7 +97,3 @@ L = R + κn(1-p)/(1-pⁿ)
 论文的 Retail 结果则是成功率从 88.6% 变为 87.7%，耗时从 162.4 秒降至 87.5 秒。AutomationBench 上，成功率则从 Weak-only 的 6.8% 提高到 10.5%，仍低于 Strong-only 的 15.2%。审核与修复能保留多少质量，随任务和小模型能力变化；这也决定了需要付出多少重试与修复工作。
 
 SpecAgent 的语义裁决允许多条有效执行路径。与 [token 级 speculative decoding](/posts/deepinfer-inference-design/) 保持目标模型采样分布的目标不同，这里的接受规则由 Strong 对任务进展的判断构成。工程上采用它，首先要确认工具如何分类、哪些已执行观察能从历史移除、Strong 能看到哪些审核证据。论文在 VitaBench 截断工具输出，在 MCP-Atlas 截断旧观察，审核实际依据的是这些可见材料。随后再测量接受前缀长度、修复频率和端到端成本。这些量才能说明，自己的系统是否具备让强模型从逐步生成转为审核的条件。
-
-## 主要参考资料
-
-1. Zilin Wang、Yinhong Liu、Chao Chen、Qun Liu、Zhijiang Guo，《Trajectory-Level Speculation with Semantic Verification for Tool-Using Agents》，2026，arXiv v1。

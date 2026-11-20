@@ -108,13 +108,7 @@ Anthropic 的 Agent 评测方法区分 transcript 与 outcome：前者记录模�
 
 开放给 Agent 的能力，要和后端已经具备的能力对齐。后端能可靠检查订单归属和余额，可以先开放“评估”；审批绑定、意图记录和幂等处理都做好了，再开放“提交”；状态可查之后，才让 Agent 向用户解释退款进度。
 
-## 主要参考资料
+## 接口查阅
 
-1. Stripe《Create a refund》。
-2. Stripe《Retrieve a refund》。
-3. Stripe《Refund and cancel payments》。
-4. Stripe《Idempotent requests》。
-5. OpenAI《Function calling》。
-6. Model Context Protocol《Tools》。
-7. Anthropic《Writing effective tools for agents》。
-8. Anthropic《Demystifying evals for AI agents》。
+- Stripe《Create a refund》《Retrieve a refund》《Idempotent requests》。创建退款、查询实际状态，以及用相同幂等键重试时的行为。
+- Model Context Protocol《Tools》。区分协议错误与工具自身返回的业务错误。

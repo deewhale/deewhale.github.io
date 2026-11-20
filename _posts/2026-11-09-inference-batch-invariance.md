@@ -12,7 +12,7 @@ image_alt: "批处理划分经浮点数值和贪心选择影响 Agent 轨迹的�
 
 temperature=0 通常意味着贪心解码：每一步选择 logit 最大的 token。它取消了从概率分布随机抽取 token 的环节，却仍然依赖前向计算交给解码器的数值。如果同一请求进入不同批次时算出的 logits 略有变化，最大值的位置也可能变化。
 
-Thinking Machines 的 Horace He 与合作者在 2025 年工程文章《Defeating Nondeterminism in LLM Inference》中，把这条因果链定位到 batch invariance，即批不变性：同一个请求的数值结果，应当不随同批请求的数量及相关计算组织变化。它比“同一个 kernel 重复运行得到相同结果”多了一层要求。
+Thinking Machines 的 Horace He 与合作者在 2025 年 9 月 10 日发表的《Defeating Nondeterminism in LLM Inference》中，把这条因果链定位到 batch invariance，即批不变性：同一个请求的数值结果，应当不随同批请求的数量及相关计算组织变化。它比“同一个 kernel 重复运行得到相同结果”多了一层要求。
 
 本文沿这份报告解释批处理怎样改变归约顺序，以及作者怎样固定这些数值路径，再据此讨论 Agent 分叉的排查。
 
@@ -111,7 +111,3 @@ Agent 的另一种分叉来源是工具输入变了。检索库更新、外部�
 最后才把完整 Agent 放回环境，并保存每次工具观察。比较轨迹时，先找到首个分叉：若此前输入 token 与观察一致而 logits 不同，继续查推理数值；若工具观察已经不同，就从环境变化查起。服务若不提供 logits，可先对齐输入与输出 token，确定最早差异位置，再向服务侧取得 batch、缓存路径或数值记录。仅有最终文本或工具调用的差异，还不足以将原因定位到某个 kernel。只重复最终任务并统计成功率，可以[评估稳定程度](/posts/agent-evaluation-system-design/)，却很难定位原因。
 
 temperature=0、重复执行同一计算得到一致结果、跨 batch 数值一致、完整 Agent 环境可复现，分别约束了不同对象。明确当前要复现哪一个对象，才能为它选择正确的控制变量。
-
-## 主要参考资料
-
-1. Horace He 与 Thinking Machines 合作者，《Defeating Nondeterminism in LLM Inference》，2025 年 9 月 10 日。
