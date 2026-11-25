@@ -4,7 +4,12 @@ layout: default
 <section class="intro">
   <h1>从问题出发，<br>向机制深处走。</h1>
   <p class="intro-copy">关于 AI、软件工程与系统架构。拆解开源项目，追踪技术背后的机制，记录实践中的判断与边界。</p>
-  <p class="intro-series"><span>专题阅读：</span><a href="{{ '/topics/pi-mcp/' | relative_url }}">Pi 专题：会话与任务恢复、MCP 工具接入</a></p>
+  <p class="intro-series">
+    <span>专题阅读：</span>
+    <a href="{{ '/topics/pi-mcp/' | relative_url }}">Pi 专题：会话与任务恢复、MCP 工具接入</a>
+    <span aria-hidden="true"> · </span>
+    <a href="{{ '/topics/enterprise-agent-automation/' | relative_url }}">企业级 Agent 自动化</a>
+  </p>
 </section>
 {% if site.posts.size > 0 %}
   {% include post-order.html posts=site.posts %}

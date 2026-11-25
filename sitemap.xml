@@ -9,6 +9,7 @@ layout: null
     {% if site.posts.first %}<lastmod>{{ site.posts.first.date | date_to_xmlschema }}</lastmod>{% endif %}
   </url>
   <url><loc>{{ '/topics/' | absolute_url }}</loc></url>
+  <url><loc>{{ '/topics/enterprise-agent-automation/' | absolute_url }}</loc></url>
   <url><loc>{{ '/about/' | absolute_url }}</loc></url>
   <url><loc>{{ '/editorial-policy/' | absolute_url }}</loc></url>
   {% for post in site.posts %}

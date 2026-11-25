@@ -11,7 +11,7 @@ description: 按主题浏览 Pepper 的 AI 编程、软件工程、系统架构�
 
 按文章标签浏览已有内容，点击标题即可阅读全文。
 
-专题阅读：[Pi 的会话架构、任务恢复与工具调用](/topics/pi-mcp/)。
+专题阅读：[Pi 的会话架构、任务恢复与工具调用](/topics/pi-mcp/) · [企业级 Agent 自动化](/topics/enterprise-agent-automation/)
 
 <div class="topic-index">
 {% assign sorted_tags = site.tags | sort %}
