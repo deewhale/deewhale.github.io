@@ -2,10 +2,11 @@
 layout: post
 title: "企业级 Agent 协作平台：任务委派、执行与验收"
 date: 2026-11-25 10:28:37 +0800
+last_modified_at: 2026-11-25 10:48:03 +0800
 display_date: 2026-11-25
 image: "/assets/images/posts/enterprise-agent-collaboration-platform-mechanism.png"
 image_alt: "巡检、告警和需求形成任务后，如何分派运行、交付结果并由负责人验收"
-description: "从 Sentry 自动调试与 Spotify 迁移出发，解释企业如何统一接入巡检、告警和需求，分别管理任务、运行、交付与审批。"
+description: "对照 Sentry 的补丁交接和 Netflix Pensive 的故障诊断，说明任务如何跨入口共享，运行、交付版本和人工审批怎样关联。"
 categories: ["AI工程"]
 tags: ["Agent", "AI-native", "任务调度", "协作平台"]
 ---
@@ -28,6 +29,10 @@ Dhrumil Parekh 在 Sentry 工程博客《How we built an automated debugging wor
 
 ## 任务、运行和交付物分别记录什么
 
+Netflix 在《Making Failure Diagnosis Reliable with Pensive AI》中，把工作流某一步的失败尝试作为诊断对象。Data Portal、MCP 和 API 都能按同一次失败取结果。两处同时请求时，服务通过条件写入抢占同一条运行记录，只有一方开始生成，另一方等共享结果。浏览器断开后，服务仍会生成并保存结果。若进行中的生成记录超过服务设定的放弃时限，服务可以重新认领。
+
+Sentry 跟进的是仍开放的 PR，提醒前会重新查它的状态。一个 PR 可以保留讨论和责任人，但新提交会改变待审的内容。比较这两种做法，入口可以共享稳定的业务标识，结果是否能直接复用要看所引用的对象是否变化。诊断可按同一次失败查询；测试和审批则要能追到对应提交。诊断超时后的重新认领，也只涉及重算。已有请求可能写进外部系统时，还须查清目标状态后再重试。
+
 任务代表一项工作。实现失败后再次执行，通常仍是同一任务。运行记录代表一次尝试，包含使用的任务版本、代码基线、执行身份、允许使用的工具和当前状态。把任务与运行分开，平台才可以解释第一次尝试为何失败、第二次接着用了什么材料，以及哪次运行交付了现在看到的 PR。
 
 交付物记录一个可验收的结果。对代码变更，可保存仓库、基线与提交 SHA、CI 报告、预览产物和未完成的检查。人验收时看到的是某一版交付物。Agent 根据意见推送新提交后，系统按规则检查哪些证据需要重跑、哪些结论需要重审。GitHub 的《About protected branches》给出了一个具体实现：配置取消过时批准后，影响差异内容的更新可以使原审批失效。
@@ -42,7 +47,7 @@ Agent 的权限也要跟着这次领取走。一般巡检可以读取限定项�
 
 ## 扩大范围之前，先看工作是否真的变少
 
-Spotify 的数据集迁移提供了一个有边界的规模化案例。团队先通过 Backstage 的数据血缘和代码搜索确定受影响的仓库，再用 Fleetshift 管理迁移，交给 Honk 修改代码。这项工作涉及约 1,800 条直接下游流水线。团队选择在较标准化的 BigQuery Runner 和 dbt 上推进，并报告通过 Fleetshift 推出了 240 个自动化迁移 PR。前一个数字是两套旧数据集的直接依赖规模，后一个是交付的 PR 数量。Devon Edwards Joseph 在《Background Coding Agents: Supercharging Downstream Consumer Dataset Migrations》中记录了这条路径。平台可从已有资源目录得到目标集合，从代码和测试得到执行反馈，遇到缺少业务知识的对象则能交还给对应团队。
+Spotify 的数据集迁移提供了一个有边界的规模化案例。团队先通过 Backstage 的数据血缘和代码搜索确定受影响的仓库，再用 Fleetshift 管理迁移，交给 Honk 修改代码。这项工作涉及约 1,800 条直接下游流水线。团队选择在较标准化的 BigQuery Runner 和 dbt 上推进，并报告通过 Fleetshift 推出了 240 个自动化迁移 PR。前一个数字是两套旧数据集的直接依赖规模，后一个是交付的 PR 数量。Devon Edwards Joseph 在《Background Coding Agents: Supercharging Downstream Consumer Dataset Migrations》中记录了这条路径。平台借数据血缘和代码搜索确定哪些仓库要改。这批目标仓库很少有构建时单测，自动化交付 PR 后，仍由下游团队在合并前测试。需要按用途决定的字段留在原处，由维护者按附上的指引处理。
 
 企业试点也可以按这两个条件挑任务：是否有可确认的目标范围，以及交付后是否有代价合理的判定方式。每类任务记录人工处理耗时、待验收时长、返工、回退和未处置的结果。PR 数量上涨而队列积压扩大，说明执行速度超出了团队接收和验证的能力。此时可以缩小投递范围、补齐验证，或者先把 Agent 权限收回到诊断阶段。允许团队继续在只读环节工作，也能保留后续评估需要的数据。参考 Google SRE 的《Example Error Budget Policy》，平台可以预先写明什么结果触发暂停、哪些工作仍可继续、谁来确认恢复。对 Agent 修复，暂停范围可以收在某类变更或某组仓库，持续观测原有规则在哪里拦住了失败。
 

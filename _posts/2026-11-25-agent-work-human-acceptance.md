@@ -2,10 +2,11 @@
 layout: post
 title: "怎样把需求交给 Agent：澄清、执行与人工验收"
 date: 2026-11-25 10:28:37 +0800
+last_modified_at: 2026-11-25 10:48:03 +0800
 display_date: 2026-11-21
 image: "/assets/images/posts/agent-work-human-acceptance-mechanism.png"
 image_alt: "业务验收、代码审查和环境发布各自使用的证据与决定"
-description: "借 Spotify 迁移与 Meta JiTTests 说明如何向 Agent 委派需求，用可核查的证据完成业务验收、代码审查和发布审批。"
+description: "对照 Spotify 与 Google 的迁移实践，说明怎样向 Agent 委派需求，区分可自动验证的条件和需要人工确认的业务判断。"
 categories: ["AI工程"]
 tags: ["Agent", "AI-native", "需求管理", "人工验收"]
 ---
@@ -29,6 +30,10 @@ Agent 可以先做有限的事实调查，例如检查既有行为和涉及哪�
 验收人要能沿每条需求找到证据。代码类交付可以在工单或 PR 中保留一张小表，包含要求、检查方式、证据、验证版本和结论。自动检查由独立的 CI 运行，附上相关测试和基线。需要人工体验的条目可链接到特定版本的预览，并给出应该操作的路径和预期结果。某条检查未运行，就保留未验证状态，并说明未验证的是哪种行为。
 
 Spotify 的数据集迁移有一个具体例子。团队用 Backstage 和代码搜索找到下游消费者，再让 Honk 协助迁移。Devon Edwards Joseph 在《Background Coding Agents: Supercharging Downstream Consumer Dataset Migrations》中记录，团队最初让模型把给工程师的迁移指南改成 Agent 用的材料，Honk 仍会猜错字段映射。团队随后把映射写成表。遇到需要按用途决定的字段，Agent 就保留原字段，在代码旁附迁移指引。由于覆盖这些目标仓库的构建时单元测试很少，下游团队合并前还要自己测试。验收材料在这里分成两部分：映射表给出可以逐项核对的更改，注释指出哪些字段仍需负责人作业务判断。如果剩余判断没有被写出来，审核者就要从差异和旧文档里自行找出这里省略了什么。
+
+Google 的广告系统迁移也把范围先交给领域工程师。《Accelerating code migrations with AI》记录，工程师用 Code Search、Kythe 和脚本圈定可能需要把 32 位 ID 改成 64 位的代码位置。迁移工具生成改动并运行单测，有些测试也随之更新。工程师检查并补改，再把变更拆开交给各段代码的所有者。与 Spotify 一样，有人负责确定范围、有人负责验收差异。Google 的单测可以先检查受测代码能否按要求处理 64 位 ID。Spotify 的这批 dbt 和 BigQuery Runner 仓库很少有构建时单测，部分字段的选择还依赖具体用途，自动化需要把这两项留给下游团队。
+
+可以据此设计交付记录。规则已写清、并有独立检查覆盖的条目，交给系统先跑，保存同版本的结果。预期行为还要业务方决定时，给人看具体字段、待选方案和可重复的测试步骤。若代码和测试一并改了，单列变化的断言及其需求依据，验收人才能确认通过报告仍在检查原先承诺的行为。
 
 自动验证的产物也可以专门为人工判断设计。Meta 在《Catching Bugs Before They Land: JiTTesting’s Human-on-the-Loop Approach at Full Scale》中介绍，系统夜间挑选有风险的改动，生成能展示行为差异的可执行测试，再用规则和模型筛掉一部分弱发现。排名足够高的发现才交给工程师。工程师可以据行为差异判断它是否符合意图。这里的经验可以用于设计验收界面：让人看清对用户或系统发生了什么变化，必要时再进入测试代码和运行记录。
 

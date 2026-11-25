@@ -2,10 +2,11 @@
 layout: post
 title: "定时巡检 Agent：异常筛选、工单去重与升级"
 date: 2026-11-25 10:33:19 +0800
+last_modified_at: 2026-11-25 10:48:03 +0800
 display_date: 2026-11-19
 image: "/assets/images/posts/scheduled-agent-inspection-mechanism.png"
 image_alt: "巡检固定覆盖范围后整理证据，再更新工单并按条件升级"
-description: "用 Meta 夜间测试与 Sentry 的提醒流程，说明巡检如何记录覆盖范围、判断异常、避免重复工单，并在适当时升级。"
+description: "对照 Meta 夜间测试与 Netflix 实时告警，说明怎样选择巡检触发方式，再用覆盖记录、工单去重和升级规则交接异常。"
 categories: ["AI工程"]
 tags: ["Agent", "AI-native", "定时巡检", "工单"]
 ---
@@ -15,6 +16,12 @@ tags: ["Agent", "AI-native", "定时巡检", "工单"]
 Meta 的 Catching JiTTests 是一个范围明确的例子。系统夜间挑选前一天有风险的代码改动，用模型生成能暴露行为差异的测试，运行并收集可疑结果。随后，它结合规则和模型给发现排序，只把值得进一步确认的结果交给工程师。Sreeja Thummala 等人在《Catching Bugs Before They Land: JiTTesting’s Human-on-the-Loop Approach at Full Scale》中说明了这条路径。夜间运行提供了计算窗口，实际测试提供了证据，筛选决定哪些发现值得占用工程师的时间。
 
 ![巡检固定覆盖范围后整理证据，再更新工单并按条件升级](/assets/images/posts/scheduled-agent-inspection-mechanism.png)
+
+## 先决定异常允许晚多久被发现
+
+Meta 可以把测试集中到夜间，检查对象是一批已提交的代码差异，生成和运行测试也需要算力。Netflix 的指标告警遇到的则是另一种期限。Netflix TechBlog 的《Improved Alerting with Atlas Streaming Eval》记录，一个平台团队批量增加数万条告警规则后，每条规则定时向 Atlas 查询。查询遭到限流，重试与退避进一步拉长了检查间隔，关键健康告警曾晚到 45 分钟。Netflix 随后把多数告警查询移到流式求值路径，让规则根据新到的指标推进计算。
+
+选触发方式时，先明确可接受的发现时间，再看计算需要什么数据。对逐批评估的改动，可以定时生成证据后统一分派。对需要尽快发现的健康问题，采集和规则判断优先采用能满足时限的事件或流式入口，解释与分诊放到后续队列。Atlas 当时的流式路径也有不支持的运算，依赖历史比较的检查仍要按所需数据设计。无论走哪条路径，都要分别记录数据截至何时、是否按时完成、哪些对象还没有查到。缩短计划间隔之前，先检查排队、限流和重试会不会消耗同一份时间预算。
 
 ## 规则发现异常，Agent 补上处置所需的上下文
 
