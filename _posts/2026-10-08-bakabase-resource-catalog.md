@@ -35,7 +35,7 @@ Bakabase 是管理本地媒体收藏的软件。它将文件和目录登记成�
 
 源码中的 `ResourceDbModel` 保存 Id、Path、IsFile、ParentId 和 Status。一项 Resource 可以代表文件或目录，也可以暂时没有本地路径。Id 标识资源记录，Path 描述它关联的磁盘位置；没有本地路径时，资源记录仍可存在。
 
-资源发现由 `ResourceMarkConfig` 配置匹配方式、相对层级、文件/目录过滤、扩展名及资源边界。`FileSystemResolver` 据此枚举候选，`ResourceSyncService` 再与已有资源和来源链接协调，创建或更新记录并整理父子关系。
+用户通过 `ResourceMarkConfig` 配置资源发现规则，包括匹配方式、相对层级、文件/目录过滤、扩展名及资源边界。`FileSystemResolver` 根据这些规则枚举候选路径。`ResourceSyncService` 将候选与已有资源、来源链接对照，创建或更新资源记录，并整理父子关系。
 
 仓库的 `PathMarkResourceBoundaryTests` 给出了可核对的最小材料。它实际构造三棵目录：
 

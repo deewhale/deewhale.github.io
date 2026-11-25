@@ -12,7 +12,9 @@ last_modified_at: 2026-10-29 19:49:24 +0800
 
 DeepInfer 是 DeepSeek 开源的大模型推理引擎。应用把输入文本和生成参数交给它，它负责载入权重、管理请求与缓存，在多个计算设备上安排模型执行，再把生成结果交回应用。当前公开版本面向 DeepSeek-V4.1-Flash，提供离线 API 和核心执行能力；在线协议、阶段拆分与跨副本路由还需要服务层接入。
 
-理解推理引擎，可以先看它同时处理的三种工作。第一是把权重放到能够容纳它们的设备上，并让多个设备分担模型计算。第二是在不断进入和结束的请求之间安排每一轮计算，让设备保持有效批量。第三是保存上下文和采样状态，让下一轮继续得到正确结果。模型权重给出计算规则，引擎决定这些规则怎样在真实设备和请求负载中运行。
+理解推理引擎，可以先看权重与计算分配、请求调度、状态保存这三项工作。
+
+引擎先把权重放到能够容纳它们的设备上，让多个设备分担模型计算。运行期间，调度器从不断进入和结束的请求中选择每轮要处理的序列，让设备保持有效批量。引擎还要保存各请求的上下文和采样状态，供下一轮继续计算。模型权重给出计算规则，引擎决定这些规则怎样在真实设备和请求负载中运行。
 
 下面先顺着一条请求看引擎的执行流程，再逐项讲四个优化：专家并行（Wide EP）怎样让多张卡分担计算，DSpark 怎样决定每轮验证多少草稿 token，异步调度怎样让 CPU 调度与 GPU 计算重叠进行，有限重放怎样减少长输入的 prefill 计算。每一项都对比 vLLM、SGLang 的对应实现。读的时候可以留意两点：这项优化省掉了什么计算，为了不改变生成结果，又必须多记住什么。
 
@@ -179,7 +181,7 @@ DeepInfer 将控制拆开：CPU 先决定本轮总共做多少 query，设备再
 
 ![DeepInfer DSpark 的 CPU 总预算、GPU 验证分配与目标模型真实接受，以及异步状态修正](/assets/images/posts/deepinfer-inference-design-mechanism.png)
 
-图表达的是已有历史时的决策关系，并非一条逐项同步的时间线。总预算、每请求长度与实际接受，对应三个不同的输出。
+图表达的是已有历史时的决策关系，并非一条逐项同步的时间线。CPU 给出总 query 预算，GPU 分配各请求的验证长度，目标模型与采样器确定真正接受的 token 数。
 
 ### CPU 历史统计与 GPU 状态修正
 
@@ -306,7 +308,7 @@ DeepInfer 当前的明确发布范围，为深入研究 V4.1-Flash 在指定硬�
 
 若准备评估 DeepInfer，起点应是公开版本支持的模型、设备和交付范围。当前基线面向 DeepSeek-V4.1-Flash，硬件列出 NVIDIA SM100 与 Huawei Ascend 950；是否适合已有环境，先由这些条件决定。完整服务层的集成责任，也应进入成本评估。
 
-随后可以沿官方现有对象推进验证：先用 `offline_inference.py` 检查输入、生成和采样输出；用 EPLB 策略测试核映射不变量，再观察真实负载和搬权重成本；用 YoCo L1／L2 区分索引实现与截断算法；最后在同一负载下改变 DSpark、重放等配置，记录有效吞吐、延迟与质量。
+随后可以使用官方提供的示例和测试推进验证：先用 `offline_inference.py` 检查输入、生成和采样输出；用 EPLB 策略测试核映射不变量，再观察真实负载和搬权重成本；用 YoCo L1／L2 区分索引实现与截断算法；最后在同一负载下改变 DSpark、重放等配置，记录有效吞吐、延迟与质量。
 
 README 的 Feature details and configuration 给出了对照所需的开关：`DEEPINFER_ENABLE_MTP_VARLEN=1` 打开 confidence-scheduled 变长验证，设为 `0` 关闭这项动态长度机制，最大草稿长度由 `DEEPINFER_USE_NEXTN_DECODE` 控制。YoCo 的 `DEEPINFER_YOCO_PREFILL_TRUNCATION_MODE` 接受 `off`、`mask`、`compact`；V4.1 的 README 推荐 `compact` 配合 `DEEPINFER_YOCO_PREFILL_KEEP_TOKENS=140`。mask／compact 的同语义对照入口是 `examples/yoco/README.md` 的 L1 metadata 与 L2 end-to-end output 小节，完整重放与截断质量则另作比较。两次对照应保持其他配置一致。
 

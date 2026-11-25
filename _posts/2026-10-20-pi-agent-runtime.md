@@ -143,7 +143,7 @@ ToolTask 如果从 `execute` 阶段恢复，会直接读取已保存参数与 re
 
 `safe` 表示允许重跑，工具作者必须保证这个声明符合动作性质。内部 task identity 帮助找回同一项工作；外部操作能否重复，则取决于工具与目标系统。需要去重时，身份必须传递到真正产生效果的位置，并由那里提供可靠的原子处理或可查询结果。
 
-Submission 的 `requestId` 也有自己的范围：它对同一 conversation 中重复提交的输入作去重。它与 task identity、外部操作身份分别处理入口重试、内部恢复和外部效果。三者可以关联，保证范围需要分别建立。
+Submission 的 `requestId` 也有自己的范围：它对同一 conversation 中重复提交的输入作去重。`requestId` 处理输入入口的重试，task identity 用于找回内部任务，外部操作身份则由工具和目标系统用于识别实际动作。应用可以关联这三种标识，但仍需分别实现入口去重、内部恢复和外部操作去重。
 
 恢复还依赖重新部署的代码。持久状态记录定义名称与版本，函数本身由 registry 提供。工具缺失、参数与新版实现不兼容或迁移失败时，任务可能被阻塞，应通过 `harness.inspect` 等途径检查原因。固定实现要求保存策略和当前策略同时为 safe，也是在避免仅凭旧声明执行已经改变含义的新工具。
 
@@ -165,7 +165,7 @@ Durable 保存 ownership 关系。它与历史父节点属于不同的关系：�
 
 任务结果已经决定，但仍有归属的前台子工作等待收尾时，任务可以停在 `completing`；没有活动 run 也不必然意味着 conversation 已经 idle，等待、阻塞或收尾中的前台工作仍然影响这个判断。取消也要沿相应归属关系处理，而非只停掉最外层一条模型生成。
 
-官方 v1.0.0 的 `experimental/vacation` 是一个可以定位到源码的设计原型。原型使用预置搜索文本与不同延时来展示并行和恢复。对象之间的连接是：`research` 工具在同一次提交中创建 background 研究任务与 task-owned 子会话；研究任务的 `deliver` 阶段按 ownerTaskId 找到子会话，并用 `research:<taskId>` 提交输入；得到回答后保存报告和 `report` 阶段，再用 `research-report:<taskId>` 把报告提交回主会话。
+官方 v1.0.0 的 `experimental/vacation` 是一个可以定位到源码的设计原型。原型使用预置搜索文本与不同延时来展示并行和恢复。`research` 工具先在同一次提交中创建 background 研究任务与 task-owned 子会话。研究任务进入 `deliver` 阶段后，按 ownerTaskId 找到这个子会话，并用 `research:<taskId>` 提交输入。取得子会话的回答后，任务保存报告，将阶段更新为 `report`，再用 `research-report:<taskId>` 把报告提交回主会话。
 
 这样，恢复中的 `deliver` 可以找到已有子会话与输入；恢复中的 `report` 可以复用已有投递身份。这里的去重发生在 Durable 自己的 conversation 提交中。
 

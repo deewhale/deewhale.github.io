@@ -23,7 +23,7 @@ Paperclip 的《Create Your First Company》从建立组织开始。启动服务
 
 Paperclip 通过 adapter（适配器）连接岗位与用户自己的 Agent。适配器根据接入方式启动或调用 Agent，传递岗位配置，并接收运行信息。用户可以选择匹配的适配器，将已有的 Agent 接入任务流程。
 
-岗位、接入的 Agent 和模型配置由此可以分别管理。一个岗位可以换用其他 Agent；同一套 Agent 也可以承担多个岗位，每个岗位使用不同指令。用户需要为当前岗位明确：在哪个工作环境运行，能读取什么材料、使用什么工具，收到任务后遵守哪些要求。测试适配器连接，检查的是 Agent 能否正常启动或被调用；岗位指令和任务描述，决定了启动后它要处理什么。
+Paperclip 中的岗位、通过 adapter 接入的执行程序，以及该程序使用的模型，可以分别配置。一个岗位可以换用其他 Agent；同一套 Agent 也可以承担多个岗位，每个岗位使用不同指令。用户需要为当前岗位明确：在哪个工作环境运行，能读取什么材料、使用什么工具，收到任务后遵守哪些要求。测试适配器连接，检查的是 Agent 能否正常启动或被调用；岗位指令和任务描述，决定了启动后它要处理什么。
 
 配置好以后，用户可以点 Run now，立即触发一次运行；也可以配置 heartbeat，定时唤醒 Agent。一次 heartbeat 给执行者一次处理工作的机会：读取目标、当前分派和相关上下文，判断下一步，执行后回报。工作尚未结束时，后续唤醒可以继续处理，所以不必让每个岗位始终占着一个正在推理的进程。
 
@@ -128,7 +128,7 @@ article_workflow = Workflow(steps=[article_creation_sequence])
 
 这段摘录保留官方示例的步骤关系。工作流用 `StepInput` 携带原始输入和前序结果，用 `StepOutput` 保存当前步骤的输出。函数步骤可以直接读取 `StepInput` 中的这些数据；Agent 步骤的消息装配则优先取最近一个前序输出的内容，内容非空时直接作为输入，否则使用原始输入。
 
-在这条顺序流程中，research 收到原始主题，writing 收到 research 的结果，editing 收到 writing 的草稿。后续 Agent 若还需要原始要求或更早步骤的材料，就要在上一步输出中保留它们，或显式组装输入。工作流保存着前序结果，与每个 Agent 实际收到哪些内容，需要分别设计。
+在这条顺序流程中，research 收到原始主题，writing 收到 research 的结果，editing 收到 writing 的草稿。后续 Agent 若还需要原始要求或更早步骤的材料，就要在上一步输出中保留它们，或显式组装输入。开发者需要分别检查 Workflow 保存了哪些前序结果，以及 SDK 实际把其中哪些内容交给了当前 Agent。
 
 research 是否需要搜索、搜索什么，仍由研究 Agent 的模型和工具循环决定；research 完成后调用 writing，则由已定义的步骤顺序决定。writing 返回草稿后，Workflow 执行器按 `steps` 列表调度 editing，并将草稿作为它的输入。
 
@@ -144,7 +144,7 @@ Company 需要显式启用。它把工作分成 Product、Project 和 Task 三�
 
 ### 任务到执行组件的映射
 
-示例将 Task 转为 `ready` 时，同时写入 `executor_type="workflow"`、`executor_id="draft"`。这一步明确了工作范围和执行组件。随后，应用为这项 Task 发起 `attempt=1` 的运行请求。Company 按执行类型和 ID 从 AgentOS 的注册表查找组件，将工作交给已经定义好的 Workflow；组件的选择来自 Task 上的绑定。
+示例将 Task 转为 `ready` 时，同时写入 `executor_type="workflow"`、`executor_id="draft"`。Task 的要求说明要做什么，新增的两个字段则指定由哪个 Workflow 执行。随后，应用为这项 Task 发起 `attempt=1` 的运行请求。Company 按执行类型和 ID 从 AgentOS 的注册表查找组件，将工作交给已经定义好的 Workflow；组件的选择来自 Task 上的绑定。
 
 交给组件的输入也有明确结构。Company 将 Task 的 `brief`、公司级与当前产品的 wiki 正文、`evidence` 序列化为 JSON，并为已接受的执行添加第四项 `execution_context`，其中包含任务标识和交付要求。官方的 `draft` Workflow 包含确定性函数，它读取这份输入、直接返回文本，不调用模型。将执行者换成 Team 时，同一类 JSON 先成为 Team 的输入，再由 leader 决定怎样拆成发给成员的 `task`。
 
@@ -190,7 +190,7 @@ Agno Team 的成员交接经过委托工具及其返回值，Workflow 的交接�
 
 通用 HTTP adapter 的接入参数包括远端 `url`、请求方法、headers、超时与可选的 `payloadTemplate`。默认以 POST 发送 JSON：先放入模板字段，再写入本次的 `agentId`、`runId`、`context` 和 `connectionInstructions`；有运行时工具定义时，还会附上 `paperclipRuntimeTools`。远端据这些材料找到接入身份及本次工作，也可以用 run ID 关联自己的执行记录。
 
-这条固定实现检查 HTTP 状态，成功时返回 `exitCode: 0` 与请求摘要；它没有读取响应体中的作业结果。因此，远端若仅把工作放入队列后返回成功，Paperclip 这一轮记录的是请求已获成功响应。要继续跟踪远端作业，接入方还需保存作业标识、查询最终结果，并通过任务接口回报进展、产物与费用。适配器的请求配置接通了调用，任务回报接通了交付。
+这条固定实现检查 HTTP 状态，成功时返回 `exitCode: 0` 与请求摘要；它没有读取响应体中的作业结果。因此，远端若仅把工作放入队列后返回成功，Paperclip 这一轮记录的是请求已获成功响应。要继续跟踪远端作业，接入方还需保存作业标识、查询最终结果，并通过任务接口回报进展、产物与费用。HTTP adapter 负责把请求发到远端；远端作业是否完成、产出了什么，还要靠接入方回报给任务记录。
 
 取消也要沿这条调用关系追下去。停止等待 HTTP 响应后，远端作业可能还在运行；任务改为不再进行时，已经发出的工具操作也可能继续。需要确认实际执行者有没有收到取消、有没有停止，以及已经发生的外部写入怎样处理。
 
